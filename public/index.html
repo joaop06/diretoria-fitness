@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Aposta de Treino</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏋️ Sistema de Aposta de Treino</h1>
+            <button id="btnNovaAposta" class="btn btn-primary">+ Nova Aposta</button>
+        </header>
+
+        <!-- Modal para criar nova aposta -->
+        <div id="modalNovaAposta" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>Nova Aposta</h2>
+                <form id="formNovaAposta">
+                    <div class="form-group">
+                        <label>Data Inicial:</label>
+                        <input type="date" id="dataInicial" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Data Final:</label>
+                        <input type="date" id="dataFinal" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Limite de Faltas:</label>
+                        <input type="number" id="limiteFaltas" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Valor da Inscrição (R$):</label>
+                        <input type="number" id="valorInscricao" step="0.01" min="0" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Participantes (um por linha):</label>
+                        <textarea id="participantes" rows="5" placeholder="João Silva&#10;Maria Santos&#10;Pedro Costa"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Criar Aposta</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Lista de apostas -->
+        <div id="listaApostas" class="apostas-grid"></div>
+
+        <!-- Página de detalhes (será carregada dinamicamente) -->
+        <div id="detalhesAposta" class="detalhes-container" style="display: none;">
+            <button id="btnVoltar" class="btn btn-secondary">← Voltar</button>
+            <div id="conteudoDetalhes"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
