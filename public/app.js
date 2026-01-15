@@ -286,47 +286,106 @@ async function registrarDia() {
 function gerarImagemTabela() {
     const aposta = estado.apostaAtual;
     
-    // Criar tabela HTML
-    let tabelaHTML = `
-        <table id="tabelaParaImagem">
-            <thead>
-                <tr>
-                    <th>Participante</th>
-                    ${aposta.dias.map(dia => {
-                        const dataFormatada = new Date(dia.data).toLocaleDateString('pt-BR');
-                        return `<th>${dataFormatada}</th>`;
-                    }).join('')}
-                    <th>Faltas</th>
-                </tr>
-            </thead>
-            <tbody>
+    // Calcular faltas por participante
+    const faltasPorParticipante = {};
+    aposta.participantes.forEach(p => {
+        faltasPorParticipante[p] = 0;
+    });
+    
+    aposta.dias.forEach(dia => {
+        aposta.participantes.forEach(participante => {
+            if (!dia.participantes[participante]) {
+                faltasPorParticipante[participante]++;
+            }
+        });
+    });
+
+    // Verificar se algum participante já perdeu
+    const participantesPerdidos = aposta.participantes.filter(p => faltasPorParticipante[p] > aposta.limiteFaltas);
+    
+    // Calcular número de dias
+    const totalDias = aposta.dias.length;
+    
+    // Formatar datas
+    const dataInicialFormatada = new Date(aposta.dataInicial).toLocaleDateString('pt-BR');
+    const dataFinalFormatada = new Date(aposta.dataFinal).toLocaleDateString('pt-BR');
+    
+    // Criar HTML completo com cabeçalho, tabela invertida e resumo
+    let htmlCompleto = `
+        <div id="tabelaParaImagem">
+            <div class="tabela-cabecalho">
+                <h1 class="tabela-titulo">Aposta #${aposta.id}: ${totalDias} dias</h1>
+                <p class="tabela-subtitulo">De ${dataInicialFormatada} até ${dataFinalFormatada}</p>
+                <p class="tabela-subtitulo">Limite de ${aposta.limiteFaltas} faltas</p>
+            </div>
+            
+            <table class="tabela-invertida">
+                <thead>
+                    <tr>
+                        <th></th>
+                        ${aposta.participantes.map(p => `<th>${p}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+
+    // Linhas: cada dia é uma linha, primeira coluna é a data, depois os checks por participante
+    aposta.dias.forEach(dia => {
+        const dataFormatada = new Date(dia.data).toLocaleDateString('pt-BR');
+        htmlCompleto += '<tr>';
+        htmlCompleto += `<td><strong>${dataFormatada}</strong></td>`;
+        
+        aposta.participantes.forEach(participante => {
+            const presente = dia.participantes[participante];
+            htmlCompleto += `<td class="check ${presente ? 'presente' : 'falta'}">${presente ? '✓' : '✗'}</td>`;
+        });
+        
+        htmlCompleto += '</tr>';
+    });
+
+    htmlCompleto += `
+                </tbody>
+            </table>
+            
+            <div class="tabela-resumo">
+                <h3>Resumo de Faltas</h3>
+                <div class="resumo-lista">
     `;
 
     aposta.participantes.forEach(participante => {
-        let faltas = 0;
-        tabelaHTML += '<tr>';
-        tabelaHTML += `<td><strong>${participante}</strong></td>`;
-        
-        aposta.dias.forEach(dia => {
-            const presente = dia.participantes[participante];
-            if (!presente) faltas++;
-            tabelaHTML += `<td class="check ${presente ? 'presente' : 'falta'}">${presente ? '✓' : '✗'}</td>`;
-        });
-        
-        tabelaHTML += `<td class="faltas-count">${faltas}</td>`;
-        tabelaHTML += '</tr>';
+        const faltas = faltasPorParticipante[participante];
+        const status = faltas > aposta.limiteFaltas ? 'perdido' : faltas === aposta.limiteFaltas ? 'limite' : 'ok';
+        htmlCompleto += `<div class="resumo-item ${status}">
+            <strong>${participante}:</strong> ${faltas} falta${faltas !== 1 ? 's' : ''}
+            ${faltas > aposta.limiteFaltas ? ' ❌ PERDEU' : faltas === aposta.limiteFaltas ? ' ⚠️ NO LIMITE' : ''}
+        </div>`;
     });
 
-    tabelaHTML += '</tbody></table>';
+    htmlCompleto += `
+                </div>
+    `;
+
+    if (participantesPerdidos.length > 0) {
+        htmlCompleto += `
+                <div class="resumo-alerta">
+                    <strong>⚠️ Atenção:</strong> ${participantesPerdidos.length} participante${participantesPerdidos.length > 1 ? 's' : ''} já ${participantesPerdidos.length > 1 ? 'perderam' : 'perdeu'}: ${participantesPerdidos.join(', ')}
+                </div>
+        `;
+    }
+
+    htmlCompleto += `
+            </div>
+        </div>
+    `;
 
     const container = document.getElementById('tabelaImagem');
-    container.innerHTML = tabelaHTML;
+    container.innerHTML = htmlCompleto;
     container.style.display = 'block';
 
     // Usar html2canvas para gerar imagem
     if (typeof html2canvas !== 'undefined') {
-        const tabela = document.getElementById('tabelaParaImagem');
-        html2canvas(tabela, {
+        const elemento = document.getElementById('tabelaParaImagem');
+        html2canvas(elemento, {
             backgroundColor: '#ffffff',
             scale: 2
         }).then(canvas => {
