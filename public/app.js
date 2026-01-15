@@ -224,12 +224,18 @@ function renderizarDetalhes() {
         <div class="dias-registrados">
             <h3>Dias Registrados (${aposta.dias.length})</h3>
             ${aposta.dias.length === 0 ? '<p>Nenhum dia registrado ainda.</p>' : ''}
-            ${aposta.dias.map(dia => {
+            ${aposta.dias.map((dia, diaIndex) => {
                 const dataFormatada = new Date(dia.data).toLocaleDateString('pt-BR');
+                const diaId = `dia-${diaIndex}-${dia.data}`;
                 return `
-                    <div class="dia-registrado">
-                        <div class="dia-registrado-header">${dataFormatada}</div>
-                        <div class="dia-registrado-participantes">
+                    <div class="dia-registrado" id="${diaId}">
+                        <div class="dia-registrado-header">
+                            ${dataFormatada}
+                            <button class="btn btn-edit" onclick="toggleEdicaoDia('${dia.data}', ${diaIndex})" id="btn-edit-${diaIndex}">
+                                ✏️ Editar
+                            </button>
+                        </div>
+                        <div class="dia-registrado-participantes" id="participantes-${diaIndex}">
                             ${aposta.participantes.map(p => {
                                 const presente = dia.participantes[p];
                                 return `
@@ -238,6 +244,23 @@ function renderizarDetalhes() {
                                     </span>
                                 `;
                             }).join('')}
+                        </div>
+                        <div class="dia-edicao" id="edicao-${diaIndex}" style="display: none;">
+                            <div class="checkboxes-grid">
+                                ${aposta.participantes.map(p => {
+                                    const presente = dia.participantes[p];
+                                    return `
+                                        <div class="checkbox-item">
+                                            <input type="checkbox" id="edit-check-${diaIndex}-${p}" ${presente ? 'checked' : ''}>
+                                            <label for="edit-check-${diaIndex}-${p}">${p}</label>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                            <div class="dia-edicao-botoes">
+                                <button class="btn btn-primary" onclick="salvarEdicaoDia('${dia.data}', ${diaIndex})">💾 Salvar</button>
+                                <button class="btn btn-secondary" onclick="cancelarEdicaoDia('${dia.data}', ${diaIndex})">❌ Cancelar</button>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -402,7 +425,56 @@ function gerarImagemTabela() {
     }
 }
 
+async function toggleEdicaoDia(data, diaIndex) {
+    const edicaoDiv = document.getElementById(`edicao-${diaIndex}`);
+    const participantesDiv = document.getElementById(`participantes-${diaIndex}`);
+    const btnEdit = document.getElementById(`btn-edit-${diaIndex}`);
+    
+    if (edicaoDiv.style.display === 'none') {
+        edicaoDiv.style.display = 'block';
+        participantesDiv.style.display = 'none';
+        btnEdit.textContent = '❌ Cancelar';
+    } else {
+        edicaoDiv.style.display = 'none';
+        participantesDiv.style.display = 'flex';
+        btnEdit.textContent = '✏️ Editar';
+    }
+}
+
+async function salvarEdicaoDia(data, diaIndex) {
+    const participantes = {};
+    estado.apostaAtual.participantes.forEach(p => {
+        const checkbox = document.getElementById(`edit-check-${diaIndex}-${p}`);
+        participantes[p] = checkbox.checked;
+    });
+
+    try {
+        const response = await fetch(`${API_BASE}/${estado.apostaAtual.id}/dias`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data, participantes })
+        });
+
+        if (response.ok) {
+            estado.apostaAtual = await response.json();
+            renderizarDetalhes();
+        } else {
+            alert('Erro ao salvar alterações');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao salvar alterações');
+    }
+}
+
+function cancelarEdicaoDia(data, diaIndex) {
+    toggleEdicaoDia(data, diaIndex);
+}
+
 // Tornar funções globais para uso em onclick
 window.mostrarDetalhes = mostrarDetalhes;
 window.registrarDia = registrarDia;
 window.gerarImagemTabela = gerarImagemTabela;
+window.toggleEdicaoDia = toggleEdicaoDia;
+window.salvarEdicaoDia = salvarEdicaoDia;
+window.cancelarEdicaoDia = cancelarEdicaoDia;

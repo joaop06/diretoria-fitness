@@ -291,12 +291,48 @@ h1 {
     font-weight: bold;
     color: #667eea;
     margin-bottom: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .dia-registrado-participantes {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
+}
+
+.btn-edit {
+    background: #17a2b8;
+    color: white;
+    padding: 5px 15px;
+    font-size: 14px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-edit:hover {
+    background: #138496;
+    transform: translateY(-1px);
+}
+
+.dia-edicao {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #ddd;
+}
+
+.dia-edicao-botoes {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.dia-edicao-botoes .btn {
+    padding: 8px 20px;
+    font-size: 14px;
 }
 
 .status-badge {
