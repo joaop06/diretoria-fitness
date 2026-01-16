@@ -13,6 +13,174 @@ let estado = {
     modo: 'lista' // 'lista' ou 'detalhes'
 };
 
+// ============================================
+// SISTEMA DE ROTEAMENTO
+// ============================================
+
+class Router {
+    constructor() {
+        this.routes = new Map();
+        this.currentRoute = null;
+        this.isInitialized = false;
+        
+        // Registrar rotas
+        this.routes.set('/', () => this.navegarParaLista());
+        this.routes.set('/apostas', () => this.navegarParaLista());
+        this.routes.set('/aposta/:id', (params) => this.navegarParaDetalhes(params.id));
+        
+        // Escutar mudanças no histórico do navegador
+        window.addEventListener('popstate', (e) => {
+            this.handleRouteChange();
+        });
+    }
+    
+    // Inicializar roteamento baseado na URL atual
+    init() {
+        if (this.isInitialized) return;
+        this.isInitialized = true;
+        this.handleRouteChange();
+    }
+    
+    // Processar mudança de rota
+    handleRouteChange() {
+        const path = window.location.pathname;
+        const route = this.matchRoute(path);
+        
+        if (route) {
+            this.currentRoute = { path, handler: route.handler, params: route.params };
+            route.handler(route.params);
+        } else {
+            // Rota não encontrada, redirecionar para lista
+            this.navegarParaLista();
+        }
+    }
+    
+    // Fazer match da rota com a URL
+    matchRoute(path) {
+        // Tentar match exato primeiro
+        if (this.routes.has(path)) {
+            return {
+                handler: this.routes.get(path),
+                params: {}
+            };
+        }
+        
+        // Tentar match com parâmetros
+        for (const [routePattern, handler] of this.routes.entries()) {
+            if (routePattern.includes(':')) {
+                const regex = this.routeToRegex(routePattern);
+                const match = path.match(regex);
+                if (match) {
+                    const params = this.extractParams(routePattern, match);
+                    return { handler, params };
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    // Converter padrão de rota para regex
+    routeToRegex(routePattern) {
+        const pattern = routePattern
+            .replace(/\//g, '\\/')
+            .replace(/:(\w+)/g, '([^/]+)');
+        return new RegExp(`^${pattern}$`);
+    }
+    
+    // Extrair parâmetros da rota
+    extractParams(routePattern, match) {
+        const paramNames = [];
+        const regex = /:(\w+)/g;
+        let paramMatch;
+        
+        while ((paramMatch = regex.exec(routePattern)) !== null) {
+            paramNames.push(paramMatch[1]);
+        }
+        
+        const params = {};
+        paramNames.forEach((name, index) => {
+            params[name] = match[index + 1];
+        });
+        
+        return params;
+    }
+    
+    // Navegar para uma rota específica
+    navegar(path, replace = false) {
+        if (replace) {
+            window.history.replaceState({}, '', path);
+        } else {
+            window.history.pushState({}, '', path);
+        }
+        this.handleRouteChange();
+    }
+    
+    // Navegar para lista de apostas
+    async navegarParaLista() {
+        estado.modo = 'lista';
+        estado.apostaAtual = null;
+        
+        // Garantir que os elementos existam antes de manipular
+        const listaApostas = document.getElementById('listaApostas');
+        const detalhesAposta = document.getElementById('detalhesAposta');
+        
+        if (listaApostas && detalhesAposta) {
+            listaApostas.style.display = 'grid';
+            detalhesAposta.style.display = 'none';
+        }
+        
+        // Sempre carregar apostas para garantir dados atualizados
+        await carregarApostas();
+    }
+    
+    // Navegar para detalhes de uma aposta
+    async navegarParaDetalhes(id) {
+        const apostaId = parseInt(id);
+        
+        if (isNaN(apostaId)) {
+            console.error('ID de aposta inválido:', id);
+            this.navegarParaLista();
+            return;
+        }
+        
+        try {
+            const response = await fetch(`${API_BASE}/${apostaId}`);
+            if (!response.ok) {
+                throw new Error('Aposta não encontrada');
+            }
+            
+            estado.apostaAtual = await response.json();
+            estado.modo = 'detalhes';
+            
+            const listaApostas = document.getElementById('listaApostas');
+            const detalhesAposta = document.getElementById('detalhesAposta');
+            
+            if (listaApostas && detalhesAposta) {
+                listaApostas.style.display = 'none';
+                detalhesAposta.style.display = 'block';
+                
+                // Renderizar detalhes imediatamente
+                renderizarDetalhes();
+                setupEventListeners();
+            } else {
+                // Se os elementos não existirem ainda, aguardar um pouco
+                setTimeout(() => {
+                    this.navegarParaDetalhes(id);
+                }, 100);
+            }
+            
+        } catch (error) {
+            console.error('Erro ao carregar detalhes:', error);
+            alert('Erro ao carregar aposta. Redirecionando para a lista...');
+            this.navegarParaLista();
+        }
+    }
+}
+
+// Instanciar router
+const router = new Router();
+
 // Função para renderizar o header componentizado
 function renderizarHeader() {
     const headerContainer = document.getElementById('headerContainer');
@@ -21,7 +189,7 @@ function renderizarHeader() {
     headerContainer.innerHTML = `
         <header>
             <div class="logo-container">
-                <a href="#" onclick="mostrarLista(); return false;" class="logo-link" title="Voltar para a tela inicial">
+                <a href="/apostas" onclick="event.preventDefault(); mostrarLista(); return false;" class="logo-link" title="Voltar para a tela inicial">
                     <svg class="logo-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
                         <!-- D externo -->
                         <path d="M 20 20 L 20 80 L 60 80 Q 80 80 80 50 Q 80 20 60 20 L 20 20" 
@@ -39,7 +207,7 @@ function renderizarHeader() {
                               stroke-linejoin="round"/>
                     </svg>
                 </a>
-                <a href="#" onclick="mostrarLista(); return false;" class="logo-link" title="Voltar para a tela inicial">
+                <a href="/apostas" onclick="event.preventDefault(); mostrarLista(); return false;" class="logo-link" title="Voltar para a tela inicial">
                     <h1 class="logo-text">DIRETORIA FITNESS</h1>
                 </a>
             </div>
@@ -53,8 +221,29 @@ function renderizarHeader() {
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
+    // Garantir que o modal está fechado
+    const modal = document.getElementById('modalNovaAposta');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    
+    // Garantir que os elementos estão no estado inicial correto
+    const listaApostas = document.getElementById('listaApostas');
+    const detalhesAposta = document.getElementById('detalhesAposta');
+    
+    if (listaApostas && detalhesAposta) {
+        // Inicialmente, ambos podem estar visíveis ou ocultos, vamos garantir o estado correto
+        // O router vai ajustar isso baseado na rota
+        listaApostas.style.display = 'grid';
+        detalhesAposta.style.display = 'none';
+    }
+    
     renderizarHeader();
-    carregarApostas();
+    // Aguardar um frame para garantir que o DOM está completamente renderizado
+    requestAnimationFrame(() => {
+        // Inicializar roteamento - ele decidirá qual tela mostrar baseado na URL
+        router.init();
+    });
 });
 
 function setupEventListeners() {
@@ -110,7 +299,10 @@ async function carregarApostas() {
     try {
         const response = await fetch(API_BASE);
         estado.apostas = await response.json();
-        renderizarLista();
+        // Só renderizar lista se estivermos no modo lista
+        if (estado.modo === 'lista') {
+            renderizarLista();
+        }
     } catch (error) {
         console.error('Erro ao carregar apostas:', error);
     }
@@ -118,6 +310,7 @@ async function carregarApostas() {
 
 function renderizarLista() {
     const container = document.getElementById('listaApostas');
+    if (!container) return;
     
     if (estado.apostas.length === 0) {
         container.innerHTML = '<div class="loading">Nenhuma aposta cadastrada ainda.</div>';
@@ -173,7 +366,8 @@ async function criarAposta() {
             document.getElementById('modalNovaAposta').style.display = 'none';
             document.getElementById('formNovaAposta').reset();
             await carregarApostas();
-            mostrarDetalhes(aposta.id);
+            // Usar router para navegar
+            router.navegar(`/aposta/${aposta.id}`);
         } else {
             alert('Erro ao criar aposta');
         }
@@ -184,34 +378,27 @@ async function criarAposta() {
 }
 
 async function mostrarDetalhes(id) {
-    try {
-        const response = await fetch(`${API_BASE}/${id}`);
-        estado.apostaAtual = await response.json();
-        estado.modo = 'detalhes';
-        
-        document.getElementById('listaApostas').style.display = 'none';
-        document.getElementById('detalhesAposta').style.display = 'block';
-        
-        renderizarDetalhes();
-    } catch (error) {
-        console.error('Erro ao carregar detalhes:', error);
-        alert('Erro ao carregar aposta');
-    }
+    // Usar router para navegar - isso atualiza a URL e renderiza
+    router.navegar(`/aposta/${id}`);
 }
 
 function mostrarLista() {
-    estado.modo = 'lista';
-    estado.apostaAtual = null;
-    
-    document.getElementById('listaApostas').style.display = 'grid';
-    document.getElementById('detalhesAposta').style.display = 'none';
-    
-    carregarApostas();
+    // Usar router para navegar - isso atualiza a URL e renderiza
+    router.navegar('/apostas');
 }
 
 function renderizarDetalhes() {
     const aposta = estado.apostaAtual;
+    if (!aposta) {
+        console.error('Nenhuma aposta atual para renderizar');
+        return;
+    }
+    
     const container = document.getElementById('conteudoDetalhes');
+    if (!container) {
+        console.error('Container de detalhes não encontrado');
+        return;
+    }
     
     const dataInicial = parseLocalDate(aposta.dataInicial).toLocaleDateString('pt-BR');
     const dataFinal = parseLocalDate(aposta.dataFinal).toLocaleDateString('pt-BR');
@@ -357,7 +544,11 @@ async function registrarDia() {
         if (response.ok) {
             estado.apostaAtual = await response.json();
             renderizarDetalhes();
-            document.getElementById('dataDia').value = '';
+            setupEventListeners(); // Reconfigurar listeners após renderizar
+            const dataDiaInput = document.getElementById('dataDia');
+            if (dataDiaInput) {
+                dataDiaInput.value = '';
+            }
         } else {
             alert('Erro ao registrar dia');
         }
@@ -519,6 +710,7 @@ async function salvarEdicaoDia(data, diaIndex) {
         if (response.ok) {
             estado.apostaAtual = await response.json();
             renderizarDetalhes();
+            setupEventListeners(); // Reconfigurar listeners após renderizar
         } else {
             alert('Erro ao salvar alterações');
         }

@@ -165,6 +165,17 @@ app.delete('/api/apostas/:id', async (req, res) => {
   }
 });
 
+// Rota catch-all para SPA: redirecionar todas as rotas não-API para index.html
+// Isso permite que o roteamento do lado do cliente funcione corretamente
+app.get('*', (req, res) => {
+  // Ignorar requisições para arquivos estáticos (que já foram servidos pelo express.static)
+  // e rotas da API
+  if (req.path.startsWith('/api/') || req.path.includes('.')) {
+    return res.status(404).send('Not found');
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Inicializar servidor
 ensureDataDir().then(() => {
   app.listen(PORT, () => {
