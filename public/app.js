@@ -1,6 +1,168 @@
 const API_BASE = '/api/apostas';
 
 // ============================================
+// WEBGL BACKGROUND ANIMATION
+// ============================================
+
+class WebGLBackground {
+    constructor() {
+        this.canvas = document.getElementById('webgl-canvas');
+        if (!this.canvas) return;
+        
+        this.scene = null;
+        this.camera = null;
+        this.renderer = null;
+        this.particles = null;
+        this.animationId = null;
+        
+        this.init();
+    }
+    
+    init() {
+        if (typeof THREE === 'undefined') {
+            console.warn('Three.js não carregado');
+            return;
+        }
+        
+        // Scene
+        this.scene = new THREE.Scene();
+        this.scene.background = new THREE.Color(0x000000);
+        
+        // Camera
+        this.camera = new THREE.PerspectiveCamera(
+            75,
+            window.innerWidth / window.innerHeight,
+            0.1,
+            1000
+        );
+        this.camera.position.z = 5;
+        
+        // Renderer
+        this.renderer = new THREE.WebGLRenderer({
+            canvas: this.canvas,
+            alpha: true,
+            antialias: true
+        });
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+        this.renderer.setPixelRatio(window.devicePixelRatio);
+        
+        // Criar partículas
+        this.createParticles();
+        
+        // Event listeners
+        window.addEventListener('resize', () => this.onWindowResize());
+        
+        // Iniciar animação
+        this.animate();
+    }
+    
+    createParticles() {
+        const particleCount = 1000;
+        const geometry = new THREE.BufferGeometry();
+        const positions = new Float32Array(particleCount * 3);
+        const colors = new Float32Array(particleCount * 3);
+        const sizes = new Float32Array(particleCount);
+        
+        const color1 = new THREE.Color(0xFFE400); // Amarelo
+        const color2 = new THREE.Color(0x000000); // Preto
+        
+        for (let i = 0; i < particleCount; i++) {
+            const i3 = i * 3;
+            
+            // Posições aleatórias em uma esfera
+            const radius = 10;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(Math.random() * 2 - 1);
+            
+            positions[i3] = radius * Math.sin(phi) * Math.cos(theta);
+            positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
+            positions[i3 + 2] = radius * Math.cos(phi);
+            
+            // Cores interpoladas
+            const color = new THREE.Color().lerpColors(color1, color2, Math.random());
+            colors[i3] = color.r;
+            colors[i3 + 1] = color.g;
+            colors[i3 + 2] = color.b;
+            
+            // Tamanhos variados
+            sizes[i] = Math.random() * 2 + 0.5;
+        }
+        
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                time: { value: 0 }
+            },
+            vertexShader: `
+                attribute float size;
+                attribute vec3 color;
+                varying vec3 vColor;
+                uniform float time;
+                
+                void main() {
+                    vColor = color;
+                    vec3 pos = position;
+                    pos.x += sin(time * 0.5 + position.y * 0.1) * 0.5;
+                    pos.y += cos(time * 0.3 + position.x * 0.1) * 0.5;
+                    pos.z += sin(time * 0.4 + position.z * 0.1) * 0.5;
+                    
+                    vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    gl_Position = projectionMatrix * mvPosition;
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                
+                void main() {
+                    float distanceToCenter = distance(gl_PointCoord, vec2(0.5));
+                    float alpha = 1.0 - smoothstep(0.0, 0.5, distanceToCenter);
+                    gl_FragColor = vec4(vColor, alpha * 0.5);
+                }
+            `,
+            transparent: true,
+            vertexColors: true
+        });
+        
+        this.particles = new THREE.Points(geometry, material);
+        this.scene.add(this.particles);
+    }
+    
+    animate() {
+        this.animationId = requestAnimationFrame(() => this.animate());
+        
+        if (this.particles) {
+            this.particles.rotation.x += 0.0005;
+            this.particles.rotation.y += 0.001;
+            this.particles.material.uniforms.time.value += 0.01;
+        }
+        
+        this.renderer.render(this.scene, this.camera);
+    }
+    
+    onWindowResize() {
+        this.camera.aspect = window.innerWidth / window.innerHeight;
+        this.camera.updateProjectionMatrix();
+        this.renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    
+    destroy() {
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
+        if (this.renderer) {
+            this.renderer.dispose();
+        }
+    }
+}
+
+// Instanciar WebGL Background
+let webglBackground = null;
+
+// ============================================
 // SISTEMA DE NOTIFICAÇÕES (TOAST)
 // ============================================
 
@@ -313,6 +475,11 @@ function renderizarHeader() {
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar WebGL Background
+    if (typeof THREE !== 'undefined') {
+        webglBackground = new WebGLBackground();
+    }
+    
     // Garantir que os modais estão fechados
     const modalNovaAposta = document.getElementById('modalNovaAposta');
     const modalExclusaoAposta = document.getElementById('modalConfirmarExclusaoAposta');
@@ -414,22 +581,58 @@ function renderizarLista() {
     const container = document.getElementById('listaApostas');
     if (!container) return;
     
+    // Calcular estatísticas
+    const totalApostas = estado.apostas.length;
+    const totalParticipantes = new Set(estado.apostas.flatMap(a => a.participantes)).size;
+    const totalDiasRegistrados = estado.apostas.reduce((sum, a) => sum + a.dias.length, 0);
+    
     if (estado.apostas.length === 0) {
         container.classList.add('empty-state');
-        container.innerHTML = '<div class="loading">Nenhuma aposta cadastrada ainda.</div>';
+        container.innerHTML = `
+            <div class="empty-state-message">
+                <h2>Bem-vindo!</h2>
+                <p>Nenhuma aposta cadastrada ainda.</p>
+                <p>Crie sua primeira aposta para começar!</p>
+            </div>
+        `;
         return;
     }
     
     container.classList.remove('empty-state');
 
-    container.innerHTML = estado.apostas.map(aposta => {
+    // Hero Section
+    const heroSection = `
+        <div class="hero-section">
+            <div class="hero-content">
+                <h1 class="hero-title">DIRETORIA FITNESS</h1>
+                <p class="hero-subtitle">Gerencie suas apostas de forma inteligente</p>
+                <div class="hero-stats">
+                    <div class="hero-stat">
+                        <span class="hero-stat-number">${totalApostas}</span>
+                        <span class="hero-stat-label">Apostas Ativas</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-number">${totalParticipantes}</span>
+                        <span class="hero-stat-label">Participantes</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-number">${totalDiasRegistrados}</span>
+                        <span class="hero-stat-label">Dias Registrados</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Cards de apostas
+    const cardsHTML = estado.apostas.map((aposta, index) => {
         const dataInicial = parseLocalDate(aposta.dataInicial).toLocaleDateString('pt-BR');
         const dataFinal = parseLocalDate(aposta.dataFinal).toLocaleDateString('pt-BR');
         const totalDias = aposta.dias.length;
         const totalParticipantes = aposta.participantes.length;
 
         return `
-            <div class="aposta-card" onclick="mostrarDetalhes(${aposta.id})">
+            <div class="aposta-card" onclick="mostrarDetalhes(${aposta.id})" style="animation-delay: ${0.1 + index * 0.1}s">
                 <h3>Aposta #${aposta.id}</h3>
                 <div class="info"><strong>Período:</strong> ${dataInicial} a ${dataFinal}</div>
                 <div class="info"><strong>Participantes:</strong> ${totalParticipantes}</div>
@@ -439,6 +642,8 @@ function renderizarLista() {
             </div>
         `;
     }).join('');
+
+    container.innerHTML = heroSection + cardsHTML;
 }
 
 async function criarAposta() {
