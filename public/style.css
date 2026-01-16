@@ -116,6 +116,18 @@ header {
     color: var(--amarelo-primario);
 }
 
+.btn-danger:hover {
+    background: #333;
+    color: var(--amarelo-primario);
+}
+
+.btn-small {
+    padding: 6px 12px;
+    font-size: 12px;
+    border: 2px solid var(--preto);
+    box-shadow: 2px 2px 0 var(--preto);
+}
+
 .btn-edit {
     background: var(--amarelo-primario);
     color: var(--preto);
@@ -288,17 +300,24 @@ header {
 
 .detalhes-header {
     margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .detalhes-header h2 {
     color: var(--preto);
-    margin-bottom: 15px;
+    margin-bottom: 0;
     font-size: 36px;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 1px;
     border-bottom: 4px solid var(--preto);
     padding-bottom: 15px;
+    flex: 1;
+    min-width: 200px;
 }
 
 .detalhes-info {
@@ -459,6 +478,14 @@ header {
     letter-spacing: 0.5px;
     border-bottom: 2px solid var(--preto);
     padding-bottom: 10px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.dia-registrado-botoes {
+    display: flex;
+    gap: 10px;
+    align-items: center;
 }
 
 .dia-registrado-participantes {
@@ -685,6 +712,57 @@ table td.check.falta {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1px;
+}
+
+/* Modais de Confirmação */
+.modal-confirmacao {
+    text-align: center;
+}
+
+.modal-confirmacao h2 {
+    color: var(--preto);
+    font-size: 28px;
+    margin-bottom: 20px;
+}
+
+.modal-confirmacao p {
+    color: var(--preto);
+    font-size: 18px;
+    margin-bottom: 15px;
+    font-weight: 500;
+}
+
+.modal-info {
+    color: var(--preto);
+    font-size: 16px;
+    font-weight: 600;
+    background: var(--branco);
+    padding: 10px;
+    border: 2px solid var(--preto);
+    margin: 15px 0;
+}
+
+.modal-aviso {
+    color: var(--preto);
+    font-size: 16px;
+    font-weight: 700;
+    background: var(--amarelo-primario);
+    padding: 12px;
+    border: 3px solid var(--preto);
+    margin: 20px 0;
+    box-shadow: 3px 3px 0 var(--preto);
+}
+
+.modal-botoes {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 25px;
+    flex-wrap: wrap;
+}
+
+.modal-botoes .btn {
+    min-width: 150px;
 }
 
 /* Responsividade */

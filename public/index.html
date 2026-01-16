@@ -44,6 +44,33 @@
             </div>
         </div>
 
+        <!-- Modal de confirmação para exclusão de aposta -->
+        <div id="modalConfirmarExclusaoAposta" class="modal">
+            <div class="modal-content modal-confirmacao">
+                <h2>⚠️ Confirmar Exclusão</h2>
+                <p>Tem certeza que deseja excluir esta aposta?</p>
+                <p class="modal-aviso"><strong>Esta ação não pode ser desfeita!</strong></p>
+                <div class="modal-botoes">
+                    <button id="btnConfirmarExclusaoAposta" class="btn btn-danger">Sim, Excluir</button>
+                    <button id="btnCancelarExclusaoAposta" class="btn btn-secondary">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Modal de confirmação para exclusão de dia -->
+        <div id="modalConfirmarExclusaoDia" class="modal">
+            <div class="modal-content modal-confirmacao">
+                <h2>⚠️ Confirmar Exclusão</h2>
+                <p>Tem certeza que deseja excluir este dia registrado?</p>
+                <p id="modalDiaInfo" class="modal-info"></p>
+                <p class="modal-aviso"><strong>Esta ação não pode ser desfeita!</strong></p>
+                <div class="modal-botoes">
+                    <button id="btnConfirmarExclusaoDia" class="btn btn-danger">Sim, Excluir</button>
+                    <button id="btnCancelarExclusaoDia" class="btn btn-secondary">Cancelar</button>
+                </div>
+            </div>
+        </div>
+
         <!-- Lista de apostas -->
         <div id="listaApostas" class="apostas-grid"></div>
 

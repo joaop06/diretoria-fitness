@@ -165,6 +165,26 @@ app.delete('/api/apostas/:id', async (req, res) => {
   }
 });
 
+// Rota: Deletar dia específico de uma aposta
+app.delete('/api/apostas/:id/dias/:data', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const data = req.params.data;
+    const filePath = path.join(DATA_DIR, `aposta-${id}.json`);
+    
+    const content = await fs.readFile(filePath, 'utf-8');
+    const aposta = JSON.parse(content);
+    
+    // Remover o dia com a data especificada
+    aposta.dias = aposta.dias.filter(d => d.data !== data);
+    
+    await fs.writeFile(filePath, JSON.stringify(aposta, null, 2), 'utf-8');
+    res.json(aposta);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Rota catch-all para SPA: redirecionar todas as rotas não-API para index.html
 // Isso permite que o roteamento do lado do cliente funcione corretamente
 app.get('*', (req, res) => {

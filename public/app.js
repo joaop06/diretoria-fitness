@@ -221,10 +221,19 @@ function renderizarHeader() {
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
-    // Garantir que o modal está fechado
-    const modal = document.getElementById('modalNovaAposta');
-    if (modal) {
-        modal.style.display = 'none';
+    // Garantir que os modais estão fechados
+    const modalNovaAposta = document.getElementById('modalNovaAposta');
+    const modalExclusaoAposta = document.getElementById('modalConfirmarExclusaoAposta');
+    const modalExclusaoDia = document.getElementById('modalConfirmarExclusaoDia');
+    
+    if (modalNovaAposta) {
+        modalNovaAposta.style.display = 'none';
+    }
+    if (modalExclusaoAposta) {
+        modalExclusaoAposta.style.display = 'none';
+    }
+    if (modalExclusaoDia) {
+        modalExclusaoDia.style.display = 'none';
     }
     
     // Garantir que os elementos estão no estado inicial correto
@@ -239,6 +248,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     renderizarHeader();
+    setupModalConfirmacaoListeners();
     // Aguardar um frame para garantir que o DOM está completamente renderizado
     requestAnimationFrame(() => {
         // Inicializar roteamento - ele decidirá qual tela mostrar baseado na URL
@@ -420,6 +430,7 @@ function renderizarDetalhes() {
     container.innerHTML = `
         <div class="detalhes-header">
             <h2>Aposta #${aposta.id}</h2>
+            <button class="btn btn-danger" onclick="abrirModalExclusaoAposta()">🗑️ Excluir Aposta</button>
         </div>
         
         <div class="detalhes-info">
@@ -479,9 +490,14 @@ function renderizarDetalhes() {
                     <div class="dia-registrado" id="${diaId}">
                         <div class="dia-registrado-header">
                             ${dataFormatada}
-                            <button class="btn btn-edit" onclick="toggleEdicaoDia('${dia.data}', ${diaIndex})" id="btn-edit-${diaIndex}">
-                                ✏️ Editar
-                            </button>
+                            <div class="dia-registrado-botoes">
+                                <button class="btn btn-edit" onclick="toggleEdicaoDia('${dia.data}', ${diaIndex})" id="btn-edit-${diaIndex}">
+                                    ✏️ Editar
+                                </button>
+                                <button class="btn btn-danger btn-small" onclick="abrirModalExclusaoDia('${dia.data}', '${dataFormatada}')">
+                                    🗑️ Excluir
+                                </button>
+                            </div>
                         </div>
                         <div class="dia-registrado-participantes" id="participantes-${diaIndex}">
                             ${aposta.participantes.map(p => {
@@ -724,6 +740,151 @@ function cancelarEdicaoDia(data, diaIndex) {
     toggleEdicaoDia(data, diaIndex);
 }
 
+// Variáveis para armazenar dados temporários das exclusões
+let apostaParaExcluir = null;
+let diaParaExcluir = { data: null, dataFormatada: null };
+
+// Função para abrir modal de confirmação de exclusão de aposta
+function abrirModalExclusaoAposta() {
+    apostaParaExcluir = estado.apostaAtual;
+    const modal = document.getElementById('modalConfirmarExclusaoAposta');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+}
+
+// Função para abrir modal de confirmação de exclusão de dia
+function abrirModalExclusaoDia(data, dataFormatada) {
+    diaParaExcluir = { data, dataFormatada };
+    const modal = document.getElementById('modalConfirmarExclusaoDia');
+    const modalDiaInfo = document.getElementById('modalDiaInfo');
+    if (modal) {
+        if (modalDiaInfo) {
+            modalDiaInfo.textContent = `Dia: ${dataFormatada}`;
+        }
+        modal.style.display = 'block';
+    }
+}
+
+// Função para fechar modal de confirmação de exclusão de aposta
+function fecharModalExclusaoAposta() {
+    const modal = document.getElementById('modalConfirmarExclusaoAposta');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    apostaParaExcluir = null;
+}
+
+// Função para fechar modal de confirmação de exclusão de dia
+function fecharModalExclusaoDia() {
+    const modal = document.getElementById('modalConfirmarExclusaoDia');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    diaParaExcluir = { data: null, dataFormatada: null };
+}
+
+// Função para excluir aposta após confirmação
+async function excluirAposta() {
+    if (!apostaParaExcluir) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/${apostaParaExcluir.id}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            fecharModalExclusaoAposta();
+            alert('Aposta excluída com sucesso!');
+            // Navegar para a lista de apostas
+            router.navegar('/apostas');
+        } else {
+            alert('Erro ao excluir aposta');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao excluir aposta');
+    }
+}
+
+// Função para excluir dia após confirmação
+async function excluirDia() {
+    if (!diaParaExcluir.data || !estado.apostaAtual) return;
+    
+    try {
+        const response = await fetch(`${API_BASE}/${estado.apostaAtual.id}/dias/${diaParaExcluir.data}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            estado.apostaAtual = await response.json();
+            fecharModalExclusaoDia();
+            renderizarDetalhes();
+            setupEventListeners();
+        } else {
+            alert('Erro ao excluir dia');
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        alert('Erro ao excluir dia');
+    }
+}
+
+// Variável para rastrear se os listeners já foram configurados
+let modalListenersConfigurados = false;
+
+// Configurar event listeners dos modais de confirmação
+function setupModalConfirmacaoListeners() {
+    // Evitar configurar múltiplas vezes
+    if (modalListenersConfigurados) return;
+    
+    // Modal de exclusão de aposta
+    const btnConfirmarExclusaoAposta = document.getElementById('btnConfirmarExclusaoAposta');
+    const btnCancelarExclusaoAposta = document.getElementById('btnCancelarExclusaoAposta');
+    const modalExclusaoAposta = document.getElementById('modalConfirmarExclusaoAposta');
+    
+    if (btnConfirmarExclusaoAposta) {
+        btnConfirmarExclusaoAposta.addEventListener('click', excluirAposta);
+    }
+    
+    if (btnCancelarExclusaoAposta) {
+        btnCancelarExclusaoAposta.addEventListener('click', fecharModalExclusaoAposta);
+    }
+    
+    // Fechar modal ao clicar fora
+    if (modalExclusaoAposta) {
+        modalExclusaoAposta.addEventListener('click', (e) => {
+            if (e.target === modalExclusaoAposta) {
+                fecharModalExclusaoAposta();
+            }
+        });
+    }
+    
+    // Modal de exclusão de dia
+    const btnConfirmarExclusaoDia = document.getElementById('btnConfirmarExclusaoDia');
+    const btnCancelarExclusaoDia = document.getElementById('btnCancelarExclusaoDia');
+    const modalExclusaoDia = document.getElementById('modalConfirmarExclusaoDia');
+    
+    if (btnConfirmarExclusaoDia) {
+        btnConfirmarExclusaoDia.addEventListener('click', excluirDia);
+    }
+    
+    if (btnCancelarExclusaoDia) {
+        btnCancelarExclusaoDia.addEventListener('click', fecharModalExclusaoDia);
+    }
+    
+    // Fechar modal ao clicar fora
+    if (modalExclusaoDia) {
+        modalExclusaoDia.addEventListener('click', (e) => {
+            if (e.target === modalExclusaoDia) {
+                fecharModalExclusaoDia();
+            }
+        });
+    }
+    
+    modalListenersConfigurados = true;
+}
+
 // Tornar funções globais para uso em onclick
 window.mostrarDetalhes = mostrarDetalhes;
 window.mostrarLista = mostrarLista;
@@ -732,3 +893,5 @@ window.gerarImagemTabela = gerarImagemTabela;
 window.toggleEdicaoDia = toggleEdicaoDia;
 window.salvarEdicaoDia = salvarEdicaoDia;
 window.cancelarEdicaoDia = cancelarEdicaoDia;
+window.abrirModalExclusaoAposta = abrirModalExclusaoAposta;
+window.abrirModalExclusaoDia = abrirModalExclusaoDia;
