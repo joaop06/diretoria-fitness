@@ -323,9 +323,12 @@ function renderizarLista() {
     if (!container) return;
     
     if (estado.apostas.length === 0) {
+        container.classList.add('empty-state');
         container.innerHTML = '<div class="loading">Nenhuma aposta cadastrada ainda.</div>';
         return;
     }
+    
+    container.classList.remove('empty-state');
 
     container.innerHTML = estado.apostas.map(aposta => {
         const dataInicial = parseLocalDate(aposta.dataInicial).toLocaleDateString('pt-BR');
@@ -566,11 +569,20 @@ async function registrarDia() {
                 dataDiaInput.value = '';
             }
         } else {
-            alert('Erro ao registrar dia');
+            // Tentar obter mensagem de erro personalizada do servidor
+            const errorData = await response.json().catch(() => ({}));
+            
+            if (errorData.error && errorData.message) {
+                // Exibir mensagem personalizada do servidor
+                alert(`⚠️ ${errorData.message}`);
+            } else {
+                // Mensagem genérica caso não haja mensagem específica
+                alert('Erro ao registrar dia. Verifique os dados e tente novamente.');
+            }
         }
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao registrar dia');
+        alert('Erro ao registrar dia. Verifique sua conexão e tente novamente.');
     }
 }
 
@@ -720,7 +732,7 @@ async function salvarEdicaoDia(data, diaIndex) {
         const response = await fetch(`${API_BASE}/${estado.apostaAtual.id}/dias`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data, participantes })
+            body: JSON.stringify({ data, participantes, isEdicao: true })
         });
 
         if (response.ok) {
@@ -728,11 +740,20 @@ async function salvarEdicaoDia(data, diaIndex) {
             renderizarDetalhes();
             setupEventListeners(); // Reconfigurar listeners após renderizar
         } else {
-            alert('Erro ao salvar alterações');
+            // Tentar obter mensagem de erro personalizada do servidor
+            const errorData = await response.json().catch(() => ({}));
+            
+            if (errorData.error && errorData.message) {
+                // Exibir mensagem personalizada do servidor
+                alert(`⚠️ ${errorData.message}`);
+            } else {
+                // Mensagem genérica caso não haja mensagem específica
+                alert('Erro ao salvar alterações. Verifique os dados e tente novamente.');
+            }
         }
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao salvar alterações');
+        alert('Erro ao salvar alterações. Verifique sua conexão e tente novamente.');
     }
 }
 

@@ -157,6 +157,14 @@ header {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 25px;
+    justify-items: center;
+}
+
+.apostas-grid.empty-state {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 50vh;
 }
 
 .aposta-card {
@@ -712,6 +720,9 @@ table td.check.falta {
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 1px;
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
 }
 
 /* Modais de Confirmação */
