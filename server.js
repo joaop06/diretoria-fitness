@@ -121,11 +121,15 @@ app.put('/api/apostas/:id', async (req, res) => {
   }
 });
 
-// Função auxiliar para gerar array de datas entre duas datas
+// Função auxiliar para gerar array de datas entre duas datas (formato YYYY-MM-DD)
 function gerarDatasEntre(dataInicial, dataFinal) {
   const datas = [];
-  const inicio = new Date(dataInicial);
-  const fim = new Date(dataFinal);
+  // Parse das datas no formato YYYY-MM-DD para evitar problemas de timezone
+  const [anoInicio, mesInicio, diaInicio] = dataInicial.split('-').map(Number);
+  const [anoFim, mesFim, diaFim] = dataFinal.split('-').map(Number);
+  
+  const inicio = new Date(anoInicio, mesInicio - 1, diaInicio);
+  const fim = new Date(anoFim, mesFim - 1, diaFim);
   
   for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
     const ano = d.getFullYear();
@@ -192,8 +196,11 @@ app.post('/api/apostas/:id/dias', async (req, res) => {
     // Obter todas as datas do período da aposta
     const todasDatasPeriodo = gerarDatasEntre(aposta.dataInicial, aposta.dataFinal);
     
-    // Obter datas já cadastradas
-    const datasCadastradas = aposta.dias.map(d => d.data).sort();
+    // Obter datas já cadastradas (apenas as que estão dentro do período)
+    const datasCadastradas = aposta.dias
+      .map(d => d.data)
+      .filter(d => d >= aposta.dataInicial && d <= aposta.dataFinal)
+      .sort();
     
     // Encontrar a posição da data atual no período
     const indiceDataAtual = todasDatasPeriodo.indexOf(data);
@@ -206,11 +213,13 @@ app.post('/api/apostas/:id/dias', async (req, res) => {
       });
     }
     
-    // Verificar se há dias anteriores não cadastrados
-    if (indiceDataAtual > 0) {
-      // Verificar todos os dias anteriores à data atual
-      const diasAnteriores = todasDatasPeriodo.slice(0, indiceDataAtual);
-      const diasFaltantes = diasAnteriores.filter(d => !datasCadastradas.includes(d));
+    // Se for o primeiro dia do período, não precisa verificar dias anteriores
+    if (indiceDataAtual === 0) {
+      // É o primeiro dia, pode cadastrar normalmente
+    } else if (indiceDataAtual > 0) {
+      // Verificar apenas os dias anteriores DENTRO DO PERÍODO
+      const diasAnterioresNoPeriodo = todasDatasPeriodo.slice(0, indiceDataAtual);
+      const diasFaltantes = diasAnterioresNoPeriodo.filter(d => !datasCadastradas.includes(d));
       
       if (diasFaltantes.length > 0) {
         // Encontrar o primeiro dia faltante
