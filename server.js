@@ -155,7 +155,23 @@ app.post('/api/apostas/:id/dias', async (req, res) => {
     const content = await fs.readFile(filePath, 'utf-8');
     const aposta = JSON.parse(content);
     
-    // VALIDAÇÃO 1: Verificar se a data está dentro do período da aposta
+    // VALIDAÇÃO 1: Verificar se a data não é futura
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0); // Zerar horas para comparar apenas a data
+    
+    const dataSelecionada = new Date(data + 'T00:00:00');
+    dataSelecionada.setHours(0, 0, 0, 0);
+    
+    if (dataSelecionada > hoje) {
+      const dataFormatada = new Date(data + 'T00:00:00').toLocaleDateString('pt-BR');
+      const hojeFormatado = hoje.toLocaleDateString('pt-BR');
+      return res.status(400).json({ 
+        error: 'DATA_FUTURA',
+        message: `Não é possível registrar um dia futuro. A data selecionada (${dataFormatada}) é posterior à data de hoje (${hojeFormatado}).`
+      });
+    }
+    
+    // VALIDAÇÃO 2: Verificar se a data está dentro do período da aposta
     if (data < aposta.dataInicial || data > aposta.dataFinal) {
       const dataInicialFormatada = new Date(aposta.dataInicial + 'T00:00:00').toLocaleDateString('pt-BR');
       const dataFinalFormatada = new Date(aposta.dataFinal + 'T00:00:00').toLocaleDateString('pt-BR');

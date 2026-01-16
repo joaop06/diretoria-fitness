@@ -486,59 +486,73 @@ function renderizarDetalhes() {
         <div class="dias-registrados">
             <h3>Dias Registrados (${aposta.dias.length})</h3>
             ${aposta.dias.length === 0 ? '<p>Nenhum dia registrado ainda.</p>' : ''}
-            ${aposta.dias.map((dia, diaIndex) => {
-                const dataFormatada = parseLocalDate(dia.data).toLocaleDateString('pt-BR');
-                const diaId = `dia-${diaIndex}-${dia.data}`;
-                const LIMITE_DIAS_VISIVEIS = 5;
-                const deveOcultar = diaIndex >= LIMITE_DIAS_VISIVEIS;
-                const classeOculto = deveOcultar ? 'dia-registrado-oculto' : '';
-                return `
-                    <div class="dia-registrado ${classeOculto}" id="${diaId}" data-dia-index="${diaIndex}">
-                        <div class="dia-registrado-header">
-                            ${dataFormatada}
-                            <div class="dia-registrado-botoes">
-                                <button class="btn btn-edit" onclick="toggleEdicaoDia('${dia.data}', ${diaIndex})" id="btn-edit-${diaIndex}">
-                                    ✏️ Editar
-                                </button>
-                                <button class="btn btn-danger btn-small" onclick="abrirModalExclusaoDia('${dia.data}', '${dataFormatada}')">
-                                    🗑️ Excluir
-                                </button>
+            <div class="dias-registrados-grid">
+            ${(() => {
+                // Ordenar dias em ordem decrescente (mais recente primeiro)
+                const diasOrdenados = [...aposta.dias].sort((a, b) => {
+                    const dataA = parseLocalDate(a.data);
+                    const dataB = parseLocalDate(b.data);
+                    return dataB - dataA; // Ordem decrescente
+                });
+                
+                const LIMITE_DIAS_VISIVEIS = 2;
+                
+                return diasOrdenados.map((dia, diaIndex) => {
+                    const dataFormatada = parseLocalDate(dia.data).toLocaleDateString('pt-BR');
+                    // Usar o índice original do dia para manter referências corretas
+                    const diaIndexOriginal = aposta.dias.findIndex(d => d.data === dia.data);
+                    const diaId = `dia-${diaIndexOriginal}-${dia.data}`;
+                    const deveOcultar = diaIndex >= LIMITE_DIAS_VISIVEIS;
+                    const classeOculto = deveOcultar ? 'dia-registrado-oculto' : '';
+                    return `
+                        <div class="dia-registrado ${classeOculto}" id="${diaId}" data-dia-index="${diaIndexOriginal}">
+                            <div class="dia-registrado-header">
+                                ${dataFormatada}
+                                <div class="dia-registrado-botoes">
+                                    <button class="btn btn-edit" onclick="toggleEdicaoDia('${dia.data}', ${diaIndexOriginal})" id="btn-edit-${diaIndexOriginal}">
+                                        ✏️ Editar
+                                    </button>
+                                    <button class="btn btn-danger btn-small" onclick="abrirModalExclusaoDia('${dia.data}', '${dataFormatada}')">
+                                        🗑️ Excluir
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        <div class="dia-registrado-participantes" id="participantes-${diaIndex}">
-                            ${aposta.participantes.map(p => {
-                                const presente = dia.participantes[p];
-                                return `
-                                    <span class="status-badge ${presente ? 'status-presente' : 'status-falta'}">
-                                        ${p}: ${presente ? '✓ Presente' : '✗ Falta'}
-                                    </span>
-                                `;
-                            }).join('')}
-                        </div>
-                        <div class="dia-edicao" id="edicao-${diaIndex}" style="display: none;">
-                            <div class="checkboxes-grid">
+                            <div class="dia-registrado-participantes" id="participantes-${diaIndexOriginal}">
                                 ${aposta.participantes.map(p => {
                                     const presente = dia.participantes[p];
                                     return `
-                                        <div class="checkbox-item">
-                                            <input type="checkbox" id="edit-check-${diaIndex}-${p}" ${presente ? 'checked' : ''}>
-                                            <label for="edit-check-${diaIndex}-${p}">${p}</label>
-                                        </div>
+                                        <span class="status-badge ${presente ? 'status-presente' : 'status-falta'}">
+                                            ${p}: ${presente ? '✓ Presente' : '✗ Falta'}
+                                        </span>
                                     `;
                                 }).join('')}
                             </div>
-                            <div class="dia-edicao-botoes">
-                                <button class="btn btn-primary" onclick="salvarEdicaoDia('${dia.data}', ${diaIndex})">💾 Salvar</button>
-                                <button class="btn btn-secondary" onclick="cancelarEdicaoDia('${dia.data}', ${diaIndex})">❌ Cancelar</button>
+                            <div class="dia-edicao" id="edicao-${diaIndexOriginal}" style="display: none;">
+                                <div class="checkboxes-grid">
+                                    ${aposta.participantes.map(p => {
+                                        const presente = dia.participantes[p];
+                                        return `
+                                            <div class="checkbox-item">
+                                                <input type="checkbox" id="edit-check-${diaIndexOriginal}-${p}" ${presente ? 'checked' : ''}>
+                                                <label for="edit-check-${diaIndexOriginal}-${p}">${p}</label>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                                <div class="dia-edicao-botoes">
+                                    <button class="btn btn-primary" onclick="salvarEdicaoDia('${dia.data}', ${diaIndexOriginal})">💾 Salvar</button>
+                                    <button class="btn btn-secondary" onclick="cancelarEdicaoDia('${dia.data}', ${diaIndexOriginal})">❌ Cancelar</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-            }).join('')}
-            ${aposta.dias.length > 5 ? `
+                    `;
+                }).join('');
+            })()}
+            </div>
+            ${aposta.dias.length > 2 ? `
                 <div class="btn-ver-mais-dias">
                     <button class="btn btn-secondary" id="btn-ver-mais-dias" onclick="toggleVerMaisDias()">
-                        Ver todos os dias (${aposta.dias.length - 5} ocultos)
+                        Ver todos os dias (${aposta.dias.length - 2} ocultos)
                     </button>
                 </div>
             ` : ''}
@@ -923,7 +937,7 @@ function toggleVerMaisDias() {
     
     if (!btnVerMais || !aposta) return;
     
-    const LIMITE_DIAS_VISIVEIS = 5;
+    const LIMITE_DIAS_VISIVEIS = 2;
     const estaExpandido = btnVerMais.dataset.expandido === 'true';
     
     // Selecionar todos os dias registrados
