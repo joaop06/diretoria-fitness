@@ -121,6 +121,22 @@ app.put('/api/apostas/:id', async (req, res) => {
   }
 });
 
+// Função auxiliar para gerar array de datas entre duas datas
+function gerarDatasEntre(dataInicial, dataFinal) {
+  const datas = [];
+  const inicio = new Date(dataInicial);
+  const fim = new Date(dataFinal);
+  
+  for (let d = new Date(inicio); d <= fim; d.setDate(d.getDate() + 1)) {
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    datas.push(`${ano}-${mes}-${dia}`);
+  }
+  
+  return datas;
+}
+
 // Rota: Adicionar dia à aposta
 app.post('/api/apostas/:id/dias', async (req, res) => {
   try {
@@ -135,13 +151,82 @@ app.post('/api/apostas/:id/dias', async (req, res) => {
     const content = await fs.readFile(filePath, 'utf-8');
     const aposta = JSON.parse(content);
     
+    // VALIDAÇÃO 1: Verificar se a data está dentro do período da aposta
+    if (data < aposta.dataInicial || data > aposta.dataFinal) {
+      const dataInicialFormatada = new Date(aposta.dataInicial + 'T00:00:00').toLocaleDateString('pt-BR');
+      const dataFinalFormatada = new Date(aposta.dataFinal + 'T00:00:00').toLocaleDateString('pt-BR');
+      return res.status(400).json({ 
+        error: 'DATA_FORA_PERIODO',
+        message: `A data selecionada está fora do período da aposta. O período válido é de ${dataInicialFormatada} a ${dataFinalFormatada}.`
+      });
+    }
+    
     // Verificar se o dia já existe
     const diaIndex = aposta.dias.findIndex(d => d.data === data);
-    if (diaIndex >= 0) {
-      aposta.dias[diaIndex].participantes = participantes;
-    } else {
-      aposta.dias.push({ data, participantes });
+    const diaJaExiste = diaIndex >= 0;
+    
+    // Verificar se é uma edição explícita (quando vem do botão "Editar")
+    // Se não for edição explícita e o dia já existe, dar erro
+    const isEdicao = req.body.isEdicao === true;
+    
+    if (diaJaExiste && !isEdicao) {
+      // VALIDAÇÃO 2: Dia já cadastrado (tentativa de cadastrar novamente)
+      const dataFormatada = new Date(data + 'T00:00:00').toLocaleDateString('pt-BR');
+      return res.status(400).json({ 
+        error: 'DIA_JA_CADASTRADO',
+        message: `O dia ${dataFormatada} já foi cadastrado. Use a opção "Editar" para modificar um dia existente.`
+      });
     }
+    
+    // Se for edição explícita, permitir atualização sem validações adicionais
+    if (isEdicao && diaJaExiste) {
+      aposta.dias[diaIndex].participantes = participantes;
+      aposta.dias.sort((a, b) => a.data.localeCompare(b.data));
+      await fs.writeFile(filePath, JSON.stringify(aposta, null, 2), 'utf-8');
+      return res.json(aposta);
+    }
+    
+    // Se chegou aqui, é um dia novo. Aplicar validações para novos dias.
+    
+    // VALIDAÇÃO 3: Verificar se não está pulando dias
+    // Obter todas as datas do período da aposta
+    const todasDatasPeriodo = gerarDatasEntre(aposta.dataInicial, aposta.dataFinal);
+    
+    // Obter datas já cadastradas
+    const datasCadastradas = aposta.dias.map(d => d.data).sort();
+    
+    // Encontrar a posição da data atual no período
+    const indiceDataAtual = todasDatasPeriodo.indexOf(data);
+    
+    if (indiceDataAtual === -1) {
+      // Isso não deveria acontecer devido à validação 1, mas vamos manter
+      return res.status(400).json({ 
+        error: 'DATA_INVALIDA',
+        message: 'Data inválida.'
+      });
+    }
+    
+    // Verificar se há dias anteriores não cadastrados
+    if (indiceDataAtual > 0) {
+      // Verificar todos os dias anteriores à data atual
+      const diasAnteriores = todasDatasPeriodo.slice(0, indiceDataAtual);
+      const diasFaltantes = diasAnteriores.filter(d => !datasCadastradas.includes(d));
+      
+      if (diasFaltantes.length > 0) {
+        // Encontrar o primeiro dia faltante
+        const primeiroDiaFaltante = diasFaltantes[0];
+        const primeiroDiaFaltanteFormatado = new Date(primeiroDiaFaltante + 'T00:00:00').toLocaleDateString('pt-BR');
+        const dataAtualFormatada = new Date(data + 'T00:00:00').toLocaleDateString('pt-BR');
+        
+        return res.status(400).json({ 
+          error: 'DIA_PULADO',
+          message: `Não é possível cadastrar o dia ${dataAtualFormatada} porque ainda existem dias anteriores não cadastrados. O primeiro dia faltante é ${primeiroDiaFaltanteFormatado}.`
+        });
+      }
+    }
+    
+    // Se passou todas as validações, adicionar o novo dia
+    aposta.dias.push({ data, participantes });
     
     // Ordenar dias por data (usando comparação de strings para evitar problemas de timezone)
     aposta.dias.sort((a, b) => a.data.localeCompare(b.data));
