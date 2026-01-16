@@ -44,6 +44,19 @@ header {
     gap: 20px;
 }
 
+.logo-link {
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.logo-link:hover {
+    opacity: 0.8;
+}
+
 .logo-icon {
     width: 60px;
     height: 60px;

@@ -13,26 +13,72 @@ let estado = {
     modo: 'lista' // 'lista' ou 'detalhes'
 };
 
+// Função para renderizar o header componentizado
+function renderizarHeader() {
+    const headerContainer = document.getElementById('headerContainer');
+    if (!headerContainer) return;
+    
+    headerContainer.innerHTML = `
+        <header>
+            <div class="logo-container">
+                <a href="#" onclick="mostrarLista(); return false;" class="logo-link" title="Voltar para a tela inicial">
+                    <svg class="logo-icon" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <!-- D externo -->
+                        <path d="M 20 20 L 20 80 L 60 80 Q 80 80 80 50 Q 80 20 60 20 L 20 20" 
+                              fill="none" 
+                              stroke="#000000" 
+                              stroke-width="8" 
+                              stroke-linecap="round" 
+                              stroke-linejoin="round"/>
+                        <!-- D interno -->
+                        <path d="M 30 30 L 30 70 L 55 70 Q 70 70 70 50 Q 70 30 55 30 L 30 30" 
+                              fill="none" 
+                              stroke="#000000" 
+                              stroke-width="6" 
+                              stroke-linecap="round" 
+                              stroke-linejoin="round"/>
+                    </svg>
+                </a>
+                <a href="#" onclick="mostrarLista(); return false;" class="logo-link" title="Voltar para a tela inicial">
+                    <h1 class="logo-text">DIRETORIA FITNESS</h1>
+                </a>
+            </div>
+            <button id="btnNovaAposta" class="btn btn-primary">+ Nova Aposta</button>
+        </header>
+    `;
+    
+    // Reconfigurar event listeners após renderizar o header
+    setupEventListeners();
+}
+
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
+    renderizarHeader();
     carregarApostas();
-    setupEventListeners();
 });
 
 function setupEventListeners() {
     // Modal nova aposta
     const btnNovaAposta = document.getElementById('btnNovaAposta');
+    if (!btnNovaAposta) return; // Se o botão não existir ainda, retorna
+    
     const modal = document.getElementById('modalNovaAposta');
     const close = document.querySelector('.close');
     const form = document.getElementById('formNovaAposta');
 
-    btnNovaAposta.addEventListener('click', () => {
+    // Remover listeners anteriores se existirem (clonar e substituir remove todos os listeners)
+    const novoBtnNovaAposta = btnNovaAposta.cloneNode(true);
+    btnNovaAposta.parentNode.replaceChild(novoBtnNovaAposta, btnNovaAposta);
+    
+    document.getElementById('btnNovaAposta').addEventListener('click', () => {
         modal.style.display = 'block';
     });
 
-    close.addEventListener('click', () => {
-        modal.style.display = 'none';
-    });
+    if (close) {
+        close.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+    }
 
     window.addEventListener('click', (e) => {
         if (e.target === modal) {
@@ -40,15 +86,24 @@ function setupEventListeners() {
         }
     });
 
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        await criarAposta();
-    });
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await criarAposta();
+        });
+    }
 
     // Botão voltar
-    document.getElementById('btnVoltar').addEventListener('click', () => {
-        mostrarLista();
-    });
+    const btnVoltar = document.getElementById('btnVoltar');
+    if (btnVoltar) {
+        // Remover listener anterior se existir
+        const novoBtnVoltar = btnVoltar.cloneNode(true);
+        btnVoltar.parentNode.replaceChild(novoBtnVoltar, btnVoltar);
+        
+        document.getElementById('btnVoltar').addEventListener('click', () => {
+            mostrarLista();
+        });
+    }
 }
 
 async function carregarApostas() {
@@ -479,6 +534,7 @@ function cancelarEdicaoDia(data, diaIndex) {
 
 // Tornar funções globais para uso em onclick
 window.mostrarDetalhes = mostrarDetalhes;
+window.mostrarLista = mostrarLista;
 window.registrarDia = registrarDia;
 window.gerarImagemTabela = gerarImagemTabela;
 window.toggleEdicaoDia = toggleEdicaoDia;
