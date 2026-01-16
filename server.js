@@ -162,8 +162,32 @@ app.put('/api/apostas/:id', async (req, res) => {
     const content = await fs.readFile(filePath, 'utf-8');
     const aposta = JSON.parse(content);
     
-    // Atualizar campos permitidos
-    if (req.body.participantes !== undefined) aposta.participantes = req.body.participantes;
+    // Se estiver tentando atualizar participantes, verificar se a aposta foi iniciada
+    if (req.body.participantes !== undefined) {
+      const hoje = new Date();
+      hoje.setHours(0, 0, 0, 0);
+      const dataInicialDate = new Date(aposta.dataInicial + 'T00:00:00');
+      dataInicialDate.setHours(0, 0, 0, 0);
+      
+      // Se a data atual for >= data inicial, a aposta já foi iniciada
+      if (hoje >= dataInicialDate) {
+        return res.status(400).json({ 
+          error: 'APOSTA_INICIADA',
+          message: 'Não é possível editar os participantes de uma aposta que já foi iniciada.' 
+        });
+      }
+      
+      // Validar que pelo menos um participante foi selecionado
+      if (!Array.isArray(req.body.participantes) || req.body.participantes.length === 0) {
+        return res.status(400).json({ 
+          error: 'PARTICIPANTES_INVALIDOS',
+          message: 'Selecione pelo menos um participante.' 
+        });
+      }
+      
+      aposta.participantes = req.body.participantes;
+    }
+    
     if (req.body.dias !== undefined) aposta.dias = req.body.dias;
     
     await fs.writeFile(filePath, JSON.stringify(aposta, null, 2), 'utf-8');

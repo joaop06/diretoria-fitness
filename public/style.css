@@ -2315,6 +2315,99 @@ table td.check.nao-registrado {
     min-width: 120px;
 }
 
+/* Estatísticas dos Participantes */
+.estatisticas-participantes {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.estatistica-item {
+    background: var(--branco);
+    border: 2px solid var(--preto);
+    padding: 15px;
+    box-shadow: 3px 3px 0 var(--preto);
+    transition: all 0.3s;
+}
+
+.estatistica-item:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 var(--preto);
+}
+
+.estatistica-nome {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--preto);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid var(--preto);
+    padding-bottom: 8px;
+}
+
+.estatistica-detalhes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.estatistica-detalhe {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.estatistica-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--preto);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.estatistica-valor {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--preto);
+    font-family: 'Bebas Neue', sans-serif;
+}
+
+.close-estatisticas {
+    color: var(--preto);
+    float: right;
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    position: absolute;
+    right: 15px;
+    top: 12px;
+    line-height: 1;
+    transition: transform 0.2s;
+}
+
+.close-estatisticas:hover {
+    transform: scale(1.2);
+}
+
+.hero-stat-clickable {
+    cursor: pointer;
+}
+
+.hero-stat-clickable:hover {
+    cursor: pointer;
+}
+
+.participantes-edicao {
+    margin-top: 15px;
+    padding: 15px;
+    background: var(--branco);
+    border: 2px solid var(--preto);
+    box-shadow: 3px 3px 0 var(--preto);
+}
+
 /* Sistema de Notificações (Toast) */
 .notification-container {
     position: fixed;

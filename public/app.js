@@ -1,5 +1,8 @@
 const API_BASE = '/api/apostas';
 
+// Lista fixa de participantes (em ordem alfabética)
+const PARTICIPANTES_FIXOS = ['Brunim', 'Diogo', 'João', 'Morgan', 'Parreira', 'Tiago'];
+
 // ============================================
 // DETECÇÃO DE PERFORMANCE
 // ============================================
@@ -1303,12 +1306,40 @@ function setupEventListeners() {
             dataInicialInput.setAttribute('min', dataMinima);
         }
         
+        // Preencher checkboxes de participantes com todos pré-selecionados
+        const checkboxesContainer = document.getElementById('checkboxesParticipantes');
+        if (checkboxesContainer) {
+            checkboxesContainer.innerHTML = PARTICIPANTES_FIXOS.map(p => `
+                <div class="checkbox-item">
+                    <input type="checkbox" id="participante-${p}" checked>
+                    <label for="participante-${p}">${p}</label>
+                </div>
+            `).join('');
+        }
+        
         modal.style.display = 'block';
     });
 
     if (close) {
         close.addEventListener('click', () => {
             modal.style.display = 'none';
+        });
+    }
+    
+    // Event listener para modal de estatísticas
+    const modalEstatisticas = document.getElementById('modalEstatisticasParticipantes');
+    const closeEstatisticas = document.querySelector('.close-estatisticas');
+    if (closeEstatisticas) {
+        closeEstatisticas.addEventListener('click', () => {
+            fecharModalEstatisticasParticipantes();
+        });
+    }
+    
+    if (modalEstatisticas) {
+        window.addEventListener('click', (e) => {
+            if (e.target === modalEstatisticas) {
+                fecharModalEstatisticasParticipantes();
+            }
         });
     }
 
@@ -1491,8 +1522,9 @@ function renderizarLista() {
     
     // Calcular estatísticas
     const totalApostas = estado.apostas.length;
-    const totalParticipantes = new Set(estado.apostas.flatMap(a => a.participantes)).size;
     const totalDiasRegistrados = estado.apostas.reduce((sum, a) => sum + a.dias.length, 0);
+    const statsParticipantes = calcularEstatisticasParticipantes(estado.apostas);
+    const totalPerdas = Object.values(statsParticipantes).reduce((sum, s) => sum + s.totalPerdas, 0);
     
     if (estado.apostas.length === 0) {
         container.classList.add('empty-state');
@@ -1519,9 +1551,9 @@ function renderizarLista() {
                         <span class="hero-stat-number" data-count="${totalApostas}">0</span>
                         <span class="hero-stat-label">Apostas Ativas</span>
                     </div>
-                    <div class="hero-stat">
-                        <span class="hero-stat-number" data-count="${totalParticipantes}">0</span>
-                        <span class="hero-stat-label">Participantes</span>
+                    <div class="hero-stat hero-stat-clickable" id="hero-stat-participantes" style="cursor: pointer;" onclick="abrirModalEstatisticasParticipantes()" ontouchstart="abrirModalEstatisticasParticipantes()" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+                        <span class="hero-stat-number" data-count="${totalPerdas}">0</span>
+                        <span class="hero-stat-label">Total de Perdas</span>
                     </div>
                     <div class="hero-stat">
                         <span class="hero-stat-number" data-count="${totalDiasRegistrados}">0</span>
@@ -1799,6 +1831,59 @@ function setupCardParallax() {
     });
 }
 
+// Função para verificar se uma aposta foi iniciada
+function apostaFoiIniciada(aposta) {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dataInicialDate = new Date(aposta.dataInicial + 'T00:00:00');
+    dataInicialDate.setHours(0, 0, 0, 0);
+    return hoje >= dataInicialDate;
+}
+
+// Função para calcular estatísticas dos participantes
+function calcularEstatisticasParticipantes(apostas) {
+    const stats = {};
+    
+    // Inicializar estatísticas para todos os participantes fixos
+    PARTICIPANTES_FIXOS.forEach(p => {
+        stats[p] = {
+            totalApostas: 0,
+            totalPerdas: 0,
+            valorTotalPerdido: 0
+        };
+    });
+    
+    // Calcular estatísticas para cada aposta
+    apostas.forEach(aposta => {
+        // Calcular faltas por participante nesta aposta
+        const faltasPorParticipante = {};
+        aposta.participantes.forEach(p => {
+            faltasPorParticipante[p] = 0;
+        });
+        
+        aposta.dias.forEach(dia => {
+            aposta.participantes.forEach(participante => {
+                if (!dia.participantes[participante]) {
+                    faltasPorParticipante[participante]++;
+                }
+            });
+        });
+        
+        // Verificar quais participantes perderam
+        aposta.participantes.forEach(participante => {
+            if (stats[participante]) {
+                stats[participante].totalApostas++;
+                if (faltasPorParticipante[participante] > aposta.limiteFaltas) {
+                    stats[participante].totalPerdas++;
+                    stats[participante].valorTotalPerdido += aposta.valorInscricao;
+                }
+            }
+        });
+    });
+    
+    return stats;
+}
+
 // Função auxiliar para calcular dias corridos entre duas datas
 function calcularDiasCorridos(dataInicial, dataFinal) {
     const [anoInicio, mesInicio, diaInicio] = dataInicial.split('-').map(Number);
@@ -1820,7 +1905,6 @@ async function criarAposta() {
     const dataFinal = document.getElementById('dataFinal').value;
     const limiteFaltas = parseInt(document.getElementById('limiteFaltas').value);
     const valorInscricao = document.getElementById('valorInscricao').value;
-    const participantesText = document.getElementById('participantes').value;
     
     // Validação 1: Data inicial não pode ser anterior à data atual (pode ser o mesmo dia)
     const hoje = new Date();
@@ -1847,10 +1931,16 @@ async function criarAposta() {
         return;
     }
     
-    const participantes = participantesText
-        .split('\n')
-        .map(p => p.trim())
-        .filter(p => p.length > 0);
+    // Obter participantes selecionados dos checkboxes
+    const participantes = PARTICIPANTES_FIXOS.filter(p => {
+        const checkbox = document.getElementById(`participante-${p}`);
+        return checkbox && checkbox.checked;
+    });
+    
+    if (participantes.length === 0) {
+        notifications.error('Selecione pelo menos um participante.');
+        return;
+    }
 
     try {
         const response = await fetch(API_BASE, {
@@ -1977,14 +2067,38 @@ function renderizarDetalhes() {
         </div>
 
         <div class="participantes-section">
-            <h3>Participantes (${aposta.participantes.length})</h3>
-            <div class="participantes-list">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0;">Participantes (${aposta.participantes.length})</h3>
+                ${!apostaFoiIniciada(aposta) ? `
+                    <button class="btn btn-edit" onclick="toggleEdicaoParticipantes()" id="btn-editar-participantes">
+                        ✏️ Editar Participantes
+                    </button>
+                ` : ''}
+            </div>
+            <div class="participantes-list" id="lista-participantes">
                 ${aposta.participantes.map((p, index) => `
                     <span class="participante-tag participante-tag-animated" style="animation-delay: ${0.1 + index * 0.05}s">
                         ${p} 
                         <span class="faltas-count">(${faltasPorParticipante[p]} faltas)</span>
                     </span>
                 `).join('')}
+            </div>
+            <div class="participantes-edicao" id="edicao-participantes" style="display: none;">
+                <div class="checkboxes-grid">
+                    ${PARTICIPANTES_FIXOS.map(p => {
+                        const selecionado = aposta.participantes.includes(p);
+                        return `
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="edit-participante-${p}" ${selecionado ? 'checked' : ''}>
+                                <label for="edit-participante-${p}">${p}</label>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+                <div class="dia-edicao-botoes">
+                    <button class="btn btn-primary" onclick="salvarEdicaoParticipantes()">💾 Salvar</button>
+                    <button class="btn btn-secondary" onclick="cancelarEdicaoParticipantes()">❌ Cancelar</button>
+                </div>
             </div>
         </div>
 
@@ -2531,6 +2645,113 @@ function abrirModalExclusaoDia(data, dataFormatada) {
     }
 }
 
+// Função para abrir modal de estatísticas dos participantes
+function abrirModalEstatisticasParticipantes() {
+    const modal = document.getElementById('modalEstatisticasParticipantes');
+    const conteudo = document.getElementById('conteudoEstatisticasParticipantes');
+    
+    if (!modal || !conteudo) return;
+    
+    const stats = calcularEstatisticasParticipantes(estado.apostas);
+    
+    let html = '<div class="estatisticas-participantes">';
+    PARTICIPANTES_FIXOS.forEach(p => {
+        const stat = stats[p];
+        html += `
+            <div class="estatistica-item">
+                <div class="estatistica-nome"><strong>${p}</strong></div>
+                <div class="estatistica-detalhes">
+                    <div class="estatistica-detalhe">
+                        <span class="estatistica-label">Apostas Participadas:</span>
+                        <span class="estatistica-valor">${stat.totalApostas}</span>
+                    </div>
+                    <div class="estatistica-detalhe">
+                        <span class="estatistica-label">Total de Perdas:</span>
+                        <span class="estatistica-valor">${stat.totalPerdas}</span>
+                    </div>
+                    <div class="estatistica-detalhe">
+                        <span class="estatistica-label">Valor Total Perdido:</span>
+                        <span class="estatistica-valor">R$ ${stat.valorTotalPerdido.toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    conteudo.innerHTML = html;
+    modal.style.display = 'block';
+}
+
+// Função para fechar modal de estatísticas
+function fecharModalEstatisticasParticipantes() {
+    const modal = document.getElementById('modalEstatisticasParticipantes');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Função para alternar edição de participantes
+function toggleEdicaoParticipantes() {
+    const listaDiv = document.getElementById('lista-participantes');
+    const edicaoDiv = document.getElementById('edicao-participantes');
+    const btnEdit = document.getElementById('btn-editar-participantes');
+    
+    if (edicaoDiv.style.display === 'none') {
+        edicaoDiv.style.display = 'block';
+        listaDiv.style.display = 'none';
+        btnEdit.textContent = '❌ Cancelar';
+    } else {
+        edicaoDiv.style.display = 'none';
+        listaDiv.style.display = 'flex';
+        btnEdit.textContent = '✏️ Editar Participantes';
+    }
+}
+
+// Função para salvar edição de participantes
+async function salvarEdicaoParticipantes() {
+    const participantes = PARTICIPANTES_FIXOS.filter(p => {
+        const checkbox = document.getElementById(`edit-participante-${p}`);
+        return checkbox && checkbox.checked;
+    });
+    
+    if (participantes.length === 0) {
+        notifications.error('Selecione pelo menos um participante.');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`${API_BASE}/${estado.apostaAtual.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ participantes })
+        });
+        
+        if (response.ok) {
+            estado.apostaAtual = await response.json();
+            await carregarApostas(); // Recarregar para atualizar lista
+            renderizarDetalhes();
+            setupEventListeners();
+            notifications.success('Participantes atualizados com sucesso!');
+        } else {
+            const errorData = await response.json().catch(() => ({}));
+            if (errorData.error && errorData.message) {
+                notifications.error(errorData.message);
+            } else {
+                notifications.error('Erro ao atualizar participantes.');
+            }
+        }
+    } catch (error) {
+        console.error('Erro:', error);
+        notifications.error('Erro ao atualizar participantes. Verifique sua conexão.');
+    }
+}
+
+// Função para cancelar edição de participantes
+function cancelarEdicaoParticipantes() {
+    toggleEdicaoParticipantes();
+}
+
 // Função para fechar modal de confirmação de exclusão de aposta
 function fecharModalExclusaoAposta() {
     const modal = document.getElementById('modalConfirmarExclusaoAposta');
@@ -2694,3 +2915,7 @@ window.cancelarEdicaoDia = cancelarEdicaoDia;
 window.abrirModalExclusaoAposta = abrirModalExclusaoAposta;
 window.abrirModalExclusaoDia = abrirModalExclusaoDia;
 window.toggleVerMaisDias = toggleVerMaisDias;
+window.abrirModalEstatisticasParticipantes = abrirModalEstatisticasParticipantes;
+window.toggleEdicaoParticipantes = toggleEdicaoParticipantes;
+window.salvarEdicaoParticipantes = salvarEdicaoParticipantes;
+window.cancelarEdicaoParticipantes = cancelarEdicaoParticipantes;

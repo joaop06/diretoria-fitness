@@ -36,8 +36,10 @@
                         <input type="number" id="valorInscricao" step="0.01" min="0" required>
                     </div>
                     <div class="form-group">
-                        <label>Participantes (um por linha):</label>
-                        <textarea id="participantes" rows="5" placeholder="João Silva&#10;Maria Santos&#10;Pedro Costa"></textarea>
+                        <label>Participantes:</label>
+                        <div class="checkboxes-grid" id="checkboxesParticipantes">
+                            <!-- Será preenchido dinamicamente -->
+                        </div>
                     </div>
                     <button type="submit" class="btn btn-primary">Criar Aposta</button>
                 </form>
@@ -68,6 +70,15 @@
                     <button id="btnConfirmarExclusaoDia" class="btn btn-danger">Sim, Excluir</button>
                     <button id="btnCancelarExclusaoDia" class="btn btn-secondary">Cancelar</button>
                 </div>
+            </div>
+        </div>
+
+        <!-- Modal de estatísticas dos participantes -->
+        <div id="modalEstatisticasParticipantes" class="modal">
+            <div class="modal-content">
+                <span class="close-estatisticas">&times;</span>
+                <h2>Estatísticas dos Participantes</h2>
+                <div id="conteudoEstatisticasParticipantes"></div>
             </div>
         </div>
 
