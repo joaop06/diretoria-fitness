@@ -1,6 +1,38 @@
 const API_BASE = '/api/apostas';
 
 // ============================================
+// DETECÇÃO DE PERFORMANCE
+// ============================================
+
+class PerformanceDetector {
+    static detect() {
+        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+        const isLowEnd = navigator.hardwareConcurrency <= 2 || 
+                        (navigator.deviceMemory && navigator.deviceMemory <= 2) ||
+                        /Android.*Chrome/.test(navigator.userAgent);
+        const isSlowConnection = navigator.connection && 
+                                (navigator.connection.effectiveType === 'slow-2g' || 
+                                 navigator.connection.effectiveType === '2g');
+        
+        return {
+            isMobile,
+            isLowEnd: isLowEnd || isMobile,
+            isSlowConnection,
+            shouldReduceEffects: isLowEnd || isMobile,
+            shouldDisableWebGL: isLowEnd && isMobile,
+            maxParticles: isLowEnd ? 200 : (isMobile ? 400 : 800),
+            maxInteractiveParticles: isLowEnd ? 50 : (isMobile ? 80 : 120),
+            enableGeometries: !isLowEnd,
+            enableConnections: !isLowEnd,
+            enableCardParticles: !isLowEnd,
+            frameSkip: isLowEnd ? 2 : 1 // Renderizar a cada N frames
+        };
+    }
+}
+
+const perfConfig = PerformanceDetector.detect();
+
+// ============================================
 // WEBGL BACKGROUND ANIMATION
 // ============================================
 
@@ -13,14 +45,25 @@ class WebGLBackground {
         this.camera = null;
         this.renderer = null;
         this.particles = null;
+        this.geometries = [];
+        this.lines = null;
+        this.time = 0;
+        this.mouse = { x: 0, y: 0 };
         this.animationId = null;
         
         this.init();
+        this.setupMouseTracking();
     }
     
     init() {
         if (typeof THREE === 'undefined') {
             console.warn('Three.js não carregado');
+            return;
+        }
+        
+        // Desabilitar WebGL em dispositivos muito fracos
+        if (perfConfig.shouldDisableWebGL) {
+            this.canvas.style.display = 'none';
             return;
         }
         
@@ -35,42 +78,70 @@ class WebGLBackground {
             0.1,
             1000
         );
-        this.camera.position.z = 5;
+        this.camera.position.z = 8;
         
-        // Renderer
+        // Renderer com configurações otimizadas
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
             alpha: true,
-            antialias: true
+            antialias: !perfConfig.isLowEnd, // Desabilitar antialiasing em dispositivos fracos
+            powerPreference: 'low-power'
         });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, perfConfig.isLowEnd ? 1 : 1.5));
         
-        // Criar partículas
+        // Criar elementos 3D (condicionalmente)
         this.createParticles();
+        if (perfConfig.enableGeometries) {
+            this.createGeometries();
+        }
+        if (perfConfig.enableConnections) {
+            this.createConnections();
+        }
         
-        // Event listeners
-        window.addEventListener('resize', () => this.onWindowResize());
+        // Event listeners com throttle
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => this.onWindowResize(), 250);
+        });
         
         // Iniciar animação
+        this.frameCount = 0;
         this.animate();
     }
     
+    setupMouseTracking() {
+        let lastUpdate = 0;
+        const throttle = perfConfig.isLowEnd ? 100 : 16; // Throttle mais agressivo em dispositivos fracos
+        
+        document.addEventListener('mousemove', (e) => {
+            const now = Date.now();
+            if (now - lastUpdate < throttle) return;
+            lastUpdate = now;
+            
+            this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+        });
+    }
+    
     createParticles() {
-        const particleCount = 1000;
+        // Usar configuração de performance detectada
+        const particleCount = perfConfig.maxParticles;
         const geometry = new THREE.BufferGeometry();
         const positions = new Float32Array(particleCount * 3);
         const colors = new Float32Array(particleCount * 3);
         const sizes = new Float32Array(particleCount);
+        const velocities = new Float32Array(particleCount * 3);
         
         const color1 = new THREE.Color(0xFFE400); // Amarelo
-        const color2 = new THREE.Color(0x000000); // Preto
+        const color2 = new THREE.Color(0xFFD700); // Amarelo dourado
         
         for (let i = 0; i < particleCount; i++) {
             const i3 = i * 3;
             
-            // Posições aleatórias em uma esfera
-            const radius = 10;
+            // Posições aleatórias em uma esfera maior
+            const radius = 15 + Math.random() * 10;
             const theta = Math.random() * Math.PI * 2;
             const phi = Math.acos(Math.random() * 2 - 1);
             
@@ -78,67 +149,214 @@ class WebGLBackground {
             positions[i3 + 1] = radius * Math.sin(phi) * Math.sin(theta);
             positions[i3 + 2] = radius * Math.cos(phi);
             
+            // Velocidades para movimento
+            velocities[i3] = (Math.random() - 0.5) * 0.02;
+            velocities[i3 + 1] = (Math.random() - 0.5) * 0.02;
+            velocities[i3 + 2] = (Math.random() - 0.5) * 0.02;
+            
             // Cores interpoladas
-            const color = new THREE.Color().lerpColors(color1, color2, Math.random());
+            const t = Math.random();
+            const color = new THREE.Color().lerpColors(color1, color2, t);
             colors[i3] = color.r;
             colors[i3 + 1] = color.g;
             colors[i3 + 2] = color.b;
             
             // Tamanhos variados
-            sizes[i] = Math.random() * 2 + 0.5;
+            sizes[i] = Math.random() * 3 + 1;
         }
         
         geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
         geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+        geometry.userData.velocities = velocities;
         
         const material = new THREE.ShaderMaterial({
             uniforms: {
-                time: { value: 0 }
+                time: { value: 0 },
+                mouse: { value: new THREE.Vector2(0, 0) }
             },
             vertexShader: `
                 attribute float size;
                 attribute vec3 color;
                 varying vec3 vColor;
+                varying float vDistance;
                 uniform float time;
+                uniform vec2 mouse;
                 
                 void main() {
                     vColor = color;
                     vec3 pos = position;
-                    pos.x += sin(time * 0.5 + position.y * 0.1) * 0.5;
-                    pos.y += cos(time * 0.3 + position.x * 0.1) * 0.5;
-                    pos.z += sin(time * 0.4 + position.z * 0.1) * 0.5;
+                    
+                    // Movimento ondulatório complexo
+                    pos.x += sin(time * 0.5 + position.y * 0.1 + position.z * 0.05) * 1.0;
+                    pos.y += cos(time * 0.3 + position.x * 0.1 + position.z * 0.05) * 1.0;
+                    pos.z += sin(time * 0.4 + position.x * 0.1 + position.y * 0.05) * 1.0;
+                    
+                    // Efeito de mouse
+                    pos.xy += mouse * 2.0;
                     
                     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-                    gl_PointSize = size * (300.0 / -mvPosition.z);
+                    vDistance = -mvPosition.z;
+                    gl_PointSize = size * (400.0 / -mvPosition.z) * (1.0 + sin(time + position.x) * 0.3);
                     gl_Position = projectionMatrix * mvPosition;
                 }
             `,
             fragmentShader: `
                 varying vec3 vColor;
+                varying float vDistance;
                 
                 void main() {
-                    float distanceToCenter = distance(gl_PointCoord, vec2(0.5));
-                    float alpha = 1.0 - smoothstep(0.0, 0.5, distanceToCenter);
-                    gl_FragColor = vec4(vColor, alpha * 0.5);
+                    vec2 center = gl_PointCoord - vec2(0.5);
+                    float dist = length(center);
+                    
+                    // Brilho mais intenso
+                    float alpha = 1.0 - smoothstep(0.0, 0.6, dist);
+                    alpha *= 0.8;
+                    
+                    // Efeito de brilho no centro
+                    float glow = 1.0 - smoothstep(0.0, 0.3, dist);
+                    vec3 finalColor = vColor + vec3(glow * 0.5);
+                    
+                    gl_FragColor = vec4(finalColor, alpha);
                 }
             `,
             transparent: true,
-            vertexColors: true
+            vertexColors: true,
+            blending: THREE.AdditiveBlending
         });
         
         this.particles = new THREE.Points(geometry, material);
         this.scene.add(this.particles);
     }
     
+    createGeometries() {
+        // Torus (rosquinha) wireframe
+        const torusGeometry = new THREE.TorusGeometry(2, 0.3, 8, 50);
+        const torusMaterial = new THREE.MeshBasicMaterial({
+            color: 0xFFE400,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.3
+        });
+        const torus = new THREE.Mesh(torusGeometry, torusMaterial);
+        torus.position.set(-4, 2, -5);
+        this.scene.add(torus);
+        this.geometries.push(torus);
+        
+        // Octaedro wireframe
+        const octaGeometry = new THREE.OctahedronGeometry(1.5, 0);
+        const octaMaterial = new THREE.MeshBasicMaterial({
+            color: 0xFFE400,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.25
+        });
+        const octa = new THREE.Mesh(octaGeometry, octaMaterial);
+        octa.position.set(4, -2, -6);
+        this.scene.add(octa);
+        this.geometries.push(octa);
+        
+        // Icosaedro wireframe
+        const icoGeometry = new THREE.IcosahedronGeometry(1.2, 0);
+        const icoMaterial = new THREE.MeshBasicMaterial({
+            color: 0xFFD700,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.2
+        });
+        const ico = new THREE.Mesh(icoGeometry, icoMaterial);
+        ico.position.set(0, 3, -7);
+        this.scene.add(ico);
+        this.geometries.push(ico);
+    }
+    
+    createConnections() {
+        const lineGeometry = new THREE.BufferGeometry();
+        // Reduzir linhas baseado na performance
+        const lineCount = perfConfig.isLowEnd ? 50 : (perfConfig.isMobile ? 100 : 200);
+        const positions = new Float32Array(lineCount * 6);
+        
+        for (let i = 0; i < lineCount; i++) {
+            const i6 = i * 6;
+            const radius = 12;
+            const theta1 = Math.random() * Math.PI * 2;
+            const phi1 = Math.acos(Math.random() * 2 - 1);
+            const theta2 = Math.random() * Math.PI * 2;
+            const phi2 = Math.acos(Math.random() * 2 - 1);
+            
+            positions[i6] = radius * Math.sin(phi1) * Math.cos(theta1);
+            positions[i6 + 1] = radius * Math.sin(phi1) * Math.sin(theta1);
+            positions[i6 + 2] = radius * Math.cos(phi1);
+            positions[i6 + 3] = radius * Math.sin(phi2) * Math.cos(theta2);
+            positions[i6 + 4] = radius * Math.sin(phi2) * Math.sin(theta2);
+            positions[i6 + 5] = radius * Math.cos(phi2);
+        }
+        
+        lineGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        
+        const lineMaterial = new THREE.LineBasicMaterial({
+            color: 0xFFE400,
+            transparent: true,
+            opacity: 0.1
+        });
+        
+        this.lines = new THREE.LineSegments(lineGeometry, lineMaterial);
+        this.scene.add(this.lines);
+    }
+    
     animate() {
         this.animationId = requestAnimationFrame(() => this.animate());
+        this.frameCount++;
         
-        if (this.particles) {
-            this.particles.rotation.x += 0.0005;
-            this.particles.rotation.y += 0.001;
-            this.particles.material.uniforms.time.value += 0.01;
+        // Frame skipping para dispositivos fracos
+        if (this.frameCount % perfConfig.frameSkip !== 0) {
+            return;
         }
+        
+        this.time += 0.01;
+        
+        // Animar partículas (simplificado em dispositivos fracos)
+        if (this.particles) {
+            this.particles.rotation.x += 0.0003;
+            this.particles.rotation.y += 0.0005;
+            this.particles.material.uniforms.time.value = this.time;
+            this.particles.material.uniforms.mouse.value.set(this.mouse.x, this.mouse.y);
+            
+            // Atualizar posições das partículas (menos frequente em dispositivos fracos)
+            if (this.frameCount % (perfConfig.isLowEnd ? 2 : 1) === 0) {
+                const positions = this.particles.geometry.attributes.position;
+                const velocities = this.particles.geometry.userData.velocities;
+                
+                for (let i = 0; i < positions.count; i++) {
+                    const i3 = i * 3;
+                    positions.array[i3] += velocities[i3] + Math.sin(this.time + i) * 0.01;
+                    positions.array[i3 + 1] += velocities[i3 + 1] + Math.cos(this.time + i) * 0.01;
+                    positions.array[i3 + 2] += velocities[i3 + 2] + Math.sin(this.time * 0.5 + i) * 0.01;
+                }
+                positions.needsUpdate = true;
+            }
+        }
+        
+        // Animar geometrias (apenas se habilitado)
+        if (perfConfig.enableGeometries) {
+            this.geometries.forEach((geo, index) => {
+                geo.rotation.x += 0.002 * (index + 1);
+                geo.rotation.y += 0.003 * (index + 1);
+                geo.position.y += Math.sin(this.time + index) * 0.01;
+            });
+        }
+        
+        // Animar linhas (apenas se habilitado)
+        if (this.lines && perfConfig.enableConnections) {
+            this.lines.rotation.x += 0.0002;
+            this.lines.rotation.z += 0.0003;
+        }
+        
+        // Mover câmera suavemente (menos responsivo em dispositivos fracos)
+        const cameraSpeed = perfConfig.isLowEnd ? 0.02 : 0.05;
+        this.camera.position.x += (this.mouse.x * 2 - this.camera.position.x) * cameraSpeed;
+        this.camera.position.y += (this.mouse.y * 2 - this.camera.position.y) * cameraSpeed;
+        this.camera.lookAt(this.scene.position);
         
         this.renderer.render(this.scene, this.camera);
     }
@@ -161,6 +379,485 @@ class WebGLBackground {
 
 // Instanciar WebGL Background
 let webglBackground = null;
+
+// ============================================
+// SISTEMA DE PARTÍCULAS INTERATIVAS
+// ============================================
+
+class InteractiveParticleSystem {
+    constructor() {
+        this.canvas = null;
+        this.ctx = null;
+        this.particles = [];
+        this.mouse = { x: 0, y: 0, vx: 0, vy: 0 };
+        this.targetText = 'DF';
+        this.mode = 'free'; // 'free', 'text', 'explosion'
+        this.animationId = null;
+        this.lastMouseMove = Date.now();
+        
+        this.init();
+    }
+    
+    init() {
+        // Criar canvas para partículas interativas
+        this.canvas = document.createElement('canvas');
+        this.canvas.id = 'interactive-particles';
+        this.canvas.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 1s ease-in;
+        `;
+        document.body.appendChild(this.canvas);
+        
+        this.ctx = this.canvas.getContext('2d');
+        this.resize();
+        
+        // Criar partículas
+        this.createParticles();
+        
+        // Animação de entrada
+        this.createEntranceAnimation();
+        
+        // Event listeners
+        window.addEventListener('resize', () => this.resize());
+        document.addEventListener('mousemove', (e) => this.onMouseMove(e));
+        document.addEventListener('click', (e) => this.onClick(e));
+        document.addEventListener('mousedown', (e) => this.onMouseDown(e));
+        
+        // Fade in após animação de entrada
+        setTimeout(() => {
+            this.canvas.style.opacity = '0.7';
+        }, 1500);
+        
+        // Iniciar animação
+        this.animate();
+        
+        // Alternar modo texto quando mouse parar (desabilitado em dispositivos fracos)
+        if (!perfConfig.isLowEnd) {
+            setInterval(() => {
+                if (Date.now() - this.lastMouseMove > 2000 && this.mode === 'free') {
+                    this.mode = 'text';
+                    this.formText();
+                }
+            }, 100);
+        }
+    }
+    
+    createEntranceAnimation() {
+        // Desabilitar animação de entrada em dispositivos fracos
+        if (perfConfig.isLowEnd) {
+            return;
+        }
+        
+        // Criar explosão inicial no centro da tela
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        const entranceCount = perfConfig.isMobile ? 30 : 50;
+        
+        for (let i = 0; i < entranceCount; i++) {
+            const angle = (Math.PI * 2 * i) / entranceCount;
+            const speed = Math.random() * 8 + 4;
+            const distance = Math.random() * 200 + 100;
+            
+            this.particles.push({
+                x: centerX + Math.cos(angle) * distance,
+                y: centerY + Math.sin(angle) * distance,
+                vx: -Math.cos(angle) * speed * 0.1,
+                vy: -Math.sin(angle) * speed * 0.1,
+                size: Math.random() * 4 + 2,
+                color: '#FFE400',
+                opacity: 1,
+                targetX: centerX + (Math.random() - 0.5) * this.canvas.width,
+                targetY: centerY + (Math.random() - 0.5) * this.canvas.height,
+                originalX: centerX + (Math.random() - 0.5) * this.canvas.width,
+                originalY: centerY + (Math.random() - 0.5) * this.canvas.height,
+                trail: [],
+                isEntrance: true,
+                entranceTime: Math.random() * 30
+            });
+        }
+    }
+    
+    resize() {
+        this.canvas.width = window.innerWidth;
+        this.canvas.height = window.innerHeight;
+    }
+    
+    createParticles() {
+        const count = perfConfig.maxInteractiveParticles;
+        this.particles = [];
+        
+        for (let i = 0; i < count; i++) {
+            this.particles.push({
+                x: Math.random() * this.canvas.width,
+                y: Math.random() * this.canvas.height,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (Math.random() - 0.5) * 0.5,
+                size: Math.random() * 3 + 1,
+                color: Math.random() > 0.5 ? '#FFE400' : '#FFD700',
+                opacity: Math.random() * 0.5 + 0.3,
+                targetX: null,
+                targetY: null,
+                originalX: Math.random() * this.canvas.width,
+                originalY: Math.random() * this.canvas.height,
+                trail: []
+            });
+        }
+    }
+    
+    onMouseMove(e) {
+        this.lastMouseMove = Date.now();
+        
+        // Atualizar posição do mouse com suavização mais rápida
+        const dx = e.clientX - this.mouse.x;
+        const dy = e.clientY - this.mouse.y;
+        this.mouse.x += dx * 0.2;
+        this.mouse.y += dy * 0.2;
+        
+        // Criar pequenas partículas no rastro do mouse (desabilitado em dispositivos fracos)
+        if (!perfConfig.isLowEnd && Math.random() > 0.9) {
+            this.createTrailParticle(e.clientX, e.clientY);
+        }
+        
+        if (this.mode === 'text') {
+            this.mode = 'free';
+            // Resetar targets quando sair do modo texto
+            this.particles.forEach(p => {
+                p.targetX = null;
+                p.targetY = null;
+            });
+        }
+    }
+    
+    createTrailParticle(x, y) {
+        this.particles.push({
+            x: x + (Math.random() - 0.5) * 10,
+            y: y + (Math.random() - 0.5) * 10,
+            vx: (Math.random() - 0.5) * 1,
+            vy: (Math.random() - 0.5) * 1,
+            size: Math.random() * 2 + 1,
+            color: '#FFE400',
+            opacity: 0.8,
+            targetX: null,
+            targetY: null,
+            originalX: x,
+            originalY: y,
+            trail: [],
+            life: 40,
+            maxLife: 40
+        });
+    }
+    
+    onClick(e) {
+        // Criar explosão de partículas
+        this.createExplosion(e.clientX, e.clientY);
+    }
+    
+    onMouseDown(e) {
+        // Criar pequena explosão ao pressionar
+        this.createMiniExplosion(e.clientX, e.clientY);
+    }
+    
+    createExplosion(x, y) {
+        this.mode = 'explosion';
+        const explosionCount = perfConfig.isLowEnd ? 15 : (perfConfig.isMobile ? 20 : 25);
+        
+        for (let i = 0; i < explosionCount; i++) {
+            const angle = (Math.PI * 2 * i) / explosionCount;
+            const speed = Math.random() * 5 + 2;
+            
+            this.particles.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: Math.random() * 4 + 2,
+                color: '#FFE400',
+                opacity: 1,
+                targetX: null,
+                targetY: null,
+                originalX: x,
+                originalY: y,
+                trail: [],
+                life: 60
+            });
+        }
+        
+        setTimeout(() => {
+            this.mode = 'free';
+        }, 1000);
+    }
+    
+    createMiniExplosion(x, y) {
+        // Desabilitar mini explosões em dispositivos fracos
+        if (perfConfig.isLowEnd) return;
+        const miniCount = perfConfig.isMobile ? 8 : 10;
+        
+        for (let i = 0; i < miniCount; i++) {
+            const angle = (Math.PI * 2 * i) / miniCount;
+            const speed = Math.random() * 2 + 1;
+            
+            this.particles.push({
+                x: x,
+                y: y,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: Math.random() * 2 + 1,
+                color: '#FFD700',
+                opacity: 0.8,
+                targetX: null,
+                targetY: null,
+                originalX: x,
+                originalY: y,
+                trail: [],
+                life: 30
+            });
+        }
+    }
+    
+    formText() {
+        // Criar pontos que formam o texto "DF"
+        const fontSize = Math.min(this.canvas.width, this.canvas.height) * 0.2;
+        const centerX = this.canvas.width / 2;
+        const centerY = this.canvas.height / 2;
+        
+        // Desenhar texto em canvas temporário para obter pontos
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = this.canvas.width;
+        tempCanvas.height = this.canvas.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Criar gradiente para o texto
+        const gradient = tempCtx.createLinearGradient(0, 0, tempCanvas.width, tempCanvas.height);
+        gradient.addColorStop(0, '#FFE400');
+        gradient.addColorStop(1, '#FFD700');
+        
+        tempCtx.fillStyle = gradient;
+        tempCtx.font = `bold ${fontSize}px 'Bebas Neue', sans-serif`;
+        tempCtx.textAlign = 'center';
+        tempCtx.textBaseline = 'middle';
+        tempCtx.shadowBlur = 20;
+        tempCtx.shadowColor = '#FFE400';
+        tempCtx.fillText(this.targetText, centerX, centerY);
+        
+        // Obter pontos do texto
+        const imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+        const textPoints = [];
+        
+        // Amostragem mais densa para melhor formação do texto
+        const step = window.innerWidth < 768 ? 6 : 3;
+        
+        for (let y = 0; y < imageData.height; y += step) {
+            for (let x = 0; x < imageData.width; x += step) {
+                const index = (y * imageData.width + x) * 4;
+                if (imageData.data[index + 3] > 128) {
+                    textPoints.push({ x, y });
+                }
+            }
+        }
+        
+        // Atribuir partículas aos pontos do texto
+        if (textPoints.length > 0) {
+            this.particles.forEach((particle, i) => {
+                if (i < textPoints.length) {
+                    const point = textPoints[i];
+                    particle.targetX = point.x;
+                    particle.targetY = point.y;
+                } else {
+                    // Partículas extras vão para posições aleatórias próximas
+                    const randomPoint = textPoints[Math.floor(Math.random() * textPoints.length)];
+                    particle.targetX = randomPoint.x + (Math.random() - 0.5) * 50;
+                    particle.targetY = randomPoint.y + (Math.random() - 0.5) * 50;
+                }
+            });
+        }
+    }
+    
+    updateParticles() {
+        this.particles.forEach((particle, index) => {
+            // Animação de entrada
+            if (particle.isEntrance && particle.entranceTime > 0) {
+                particle.entranceTime--;
+                const progress = 1 - (particle.entranceTime / 30);
+                particle.opacity = progress;
+                return;
+            }
+            
+            // Atualizar trail
+            particle.trail.push({ x: particle.x, y: particle.y });
+            if (particle.trail.length > 5) {
+                particle.trail.shift();
+            }
+            
+            if (this.mode === 'text' && particle.targetX !== null && particle.targetY !== null) {
+                // Mover partícula em direção ao ponto do texto
+                const dx = particle.targetX - particle.x;
+                const dy = particle.targetY - particle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > 1) {
+                    particle.vx += dx * 0.02;
+                    particle.vy += dy * 0.02;
+                }
+            } else if (this.mode === 'explosion' && particle.life) {
+                // Partículas de explosão
+                particle.life--;
+                particle.opacity = particle.life / 60;
+                particle.vx *= 0.95;
+                particle.vy *= 0.95;
+            } else {
+                // Modo livre - interação com mouse
+                const dx = this.mouse.x - particle.x;
+                const dy = this.mouse.y - particle.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < 150) {
+                    // Repulsão do mouse com força variável
+                    const force = Math.pow((150 - distance) / 150, 2);
+                    const angle = Math.atan2(dy, dx);
+                    particle.vx -= Math.cos(angle) * force * 0.15;
+                    particle.vy -= Math.sin(angle) * force * 0.15;
+                    
+                    // Efeito de brilho quando próximo do mouse
+                    particle.opacity = Math.min(1, 0.5 + force * 0.5);
+                } else {
+                    // Fade out gradual quando longe
+                    particle.opacity = Math.max(0.3, particle.opacity * 0.98);
+                }
+                
+                // Atração suave de volta à posição original
+                const origDx = particle.originalX - particle.x;
+                const origDy = particle.originalY - particle.y;
+                const origDist = Math.sqrt(origDx * origDx + origDy * origDy);
+                
+                if (origDist > 50) {
+                    particle.vx += (origDx / origDist) * 0.002;
+                    particle.vy += (origDy / origDist) * 0.002;
+                }
+            }
+            
+            // Aplicar velocidade
+            particle.x += particle.vx;
+            particle.y += particle.vy;
+            
+            // Fricção
+            particle.vx *= 0.98;
+            particle.vy *= 0.98;
+            
+            // Limites da tela com bounce
+            if (particle.x < 0 || particle.x > this.canvas.width) {
+                particle.vx *= -0.8;
+                particle.x = Math.max(0, Math.min(this.canvas.width, particle.x));
+            }
+            if (particle.y < 0 || particle.y > this.canvas.height) {
+                particle.vy *= -0.8;
+                particle.y = Math.max(0, Math.min(this.canvas.height, particle.y));
+            }
+            
+            // Remover partículas de explosão e trail mortas
+            if (particle.life !== undefined) {
+                particle.life--;
+                particle.opacity = particle.life / particle.maxLife;
+                if (particle.life <= 0) {
+                    this.particles.splice(index, 1);
+                }
+            }
+        });
+    }
+    
+    drawParticles() {
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Desabilitar sombras em dispositivos fracos para melhor performance
+        const useShadows = !perfConfig.isLowEnd;
+        
+        this.particles.forEach(particle => {
+            // Desenhar trail (apenas se não for dispositivo fraco)
+            if (!perfConfig.isLowEnd && particle.trail.length > 0) {
+                particle.trail.forEach((point, i) => {
+                    const trailOpacity = (i / particle.trail.length) * particle.opacity * 0.3;
+                    this.ctx.fillStyle = particle.color;
+                    this.ctx.globalAlpha = trailOpacity;
+                    this.ctx.beginPath();
+                    this.ctx.arc(point.x, point.y, particle.size * 0.5, 0, Math.PI * 2);
+                    this.ctx.fill();
+                });
+            }
+            
+            // Desenhar partícula
+            this.ctx.globalAlpha = particle.opacity;
+            this.ctx.fillStyle = particle.color;
+            if (useShadows) {
+                this.ctx.shadowBlur = 10;
+                this.ctx.shadowColor = particle.color;
+            }
+            this.ctx.beginPath();
+            this.ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+            this.ctx.fill();
+            if (useShadows) {
+                this.ctx.shadowBlur = 0;
+            }
+        });
+        
+        // Desenhar conexões (apenas se habilitado e não for dispositivo fraco)
+        if (!perfConfig.isLowEnd && this.particles.length > 0) {
+            this.ctx.strokeStyle = '#FFE400';
+            this.ctx.globalAlpha = 0.2;
+            this.ctx.lineWidth = 1;
+            
+            // Reduzir verificações de conexão para melhor performance
+            const maxConnections = Math.min(this.particles.length, perfConfig.isMobile ? 50 : 80);
+            const maxNeighbors = perfConfig.isMobile ? 5 : 8;
+            
+            for (let i = 0; i < maxConnections; i++) {
+                for (let j = i + 1; j < Math.min(i + maxNeighbors, this.particles.length); j++) {
+                    const dx = this.particles[i].x - this.particles[j].x;
+                    const dy = this.particles[i].y - this.particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance < 80) {
+                        this.ctx.globalAlpha = (1 - distance / 80) * 0.2;
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(this.particles[i].x, this.particles[i].y);
+                        this.ctx.lineTo(this.particles[j].x, this.particles[j].y);
+                        this.ctx.stroke();
+                    }
+                }
+            }
+        }
+    }
+    
+    animate() {
+        this.animationId = requestAnimationFrame(() => this.animate());
+        this.frameCount = (this.frameCount || 0) + 1;
+        
+        // Frame skipping para dispositivos fracos
+        if (this.frameCount % perfConfig.frameSkip !== 0) {
+            return;
+        }
+        
+        this.updateParticles();
+        this.drawParticles();
+    }
+    
+    destroy() {
+        if (this.animationId) {
+            cancelAnimationFrame(this.animationId);
+        }
+        if (this.canvas && this.canvas.parentNode) {
+            this.canvas.parentNode.removeChild(this.canvas);
+        }
+    }
+}
+
+// Instanciar sistema de partículas interativas
+let interactiveParticles = null;
 
 // ============================================
 // SISTEMA DE NOTIFICAÇÕES (TOAST)
@@ -334,6 +1031,14 @@ class Router {
         return null;
     }
     
+    // Navegar para detalhes com dados opcionais (evita fetch desnecessário)
+    navegarParaDetalhesComDados(id, apostaData) {
+        // Atualizar URL
+        window.history.pushState({}, '', `/aposta/${id}`);
+        // Navegar diretamente com os dados já disponíveis
+        this.navegarParaDetalhes(id, apostaData);
+    }
+    
     // Converter padrão de rota para regex
     routeToRegex(routePattern) {
         const pattern = routePattern
@@ -389,7 +1094,7 @@ class Router {
     }
     
     // Navegar para detalhes de uma aposta
-    async navegarParaDetalhes(id) {
+    async navegarParaDetalhes(id, apostaData = null) {
         const apostaId = parseInt(id);
         
         if (isNaN(apostaId)) {
@@ -398,13 +1103,9 @@ class Router {
             return;
         }
         
-        try {
-            const response = await fetch(`${API_BASE}/${apostaId}`);
-            if (!response.ok) {
-                throw new Error('Aposta não encontrada');
-            }
-            
-            estado.apostaAtual = await response.json();
+        // Se os dados da aposta já foram fornecidos (ex: após criação), usar diretamente
+        if (apostaData) {
+            estado.apostaAtual = apostaData;
             estado.modo = 'detalhes';
             
             const listaApostas = document.getElementById('listaApostas');
@@ -420,14 +1121,56 @@ class Router {
             } else {
                 // Se os elementos não existirem ainda, aguardar um pouco
                 setTimeout(() => {
-                    this.navegarParaDetalhes(id);
+                    this.navegarParaDetalhes(id, apostaData);
                 }, 100);
             }
-            
-        } catch (error) {
-            console.error('Erro ao carregar detalhes:', error);
-            notifications.error('Erro ao carregar aposta. Redirecionando para a lista...');
-            this.navegarParaLista();
+            return;
+        }
+        
+        // Caso contrário, buscar do servidor com retry
+        let tentativas = 3;
+        let delay = 100;
+        
+        while (tentativas > 0) {
+            try {
+                const response = await fetch(`${API_BASE}/${apostaId}`);
+                if (!response.ok) {
+                    throw new Error('Aposta não encontrada');
+                }
+                
+                estado.apostaAtual = await response.json();
+                estado.modo = 'detalhes';
+                
+                const listaApostas = document.getElementById('listaApostas');
+                const detalhesAposta = document.getElementById('detalhesAposta');
+                
+                if (listaApostas && detalhesAposta) {
+                    listaApostas.style.display = 'none';
+                    detalhesAposta.style.display = 'block';
+                    
+                    // Renderizar detalhes imediatamente
+                    renderizarDetalhes();
+                    setupEventListeners();
+                } else {
+                    // Se os elementos não existirem ainda, aguardar um pouco
+                    setTimeout(() => {
+                        this.navegarParaDetalhes(id);
+                    }, 100);
+                }
+                return; // Sucesso, sair do loop
+                
+            } catch (error) {
+                tentativas--;
+                if (tentativas === 0) {
+                    console.error('Erro ao carregar detalhes após múltiplas tentativas:', error);
+                    notifications.error('Erro ao carregar aposta. Redirecionando para a lista...');
+                    this.navegarParaLista();
+                } else {
+                    // Aguardar antes de tentar novamente
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2; // Backoff exponencial
+                }
+            }
         }
     }
 }
@@ -475,9 +1218,28 @@ function renderizarHeader() {
 
 // Inicialização
 document.addEventListener('DOMContentLoaded', () => {
-    // Inicializar WebGL Background
-    if (typeof THREE !== 'undefined') {
+    // Inicializar WebGL Background (apenas se não for dispositivo muito fraco)
+    if (typeof THREE !== 'undefined' && !perfConfig.shouldDisableWebGL) {
         webglBackground = new WebGLBackground();
+    }
+    
+    // Inicializar sistema de partículas interativas (lazy loading em dispositivos fracos)
+    if (perfConfig.isLowEnd) {
+        // Carregar apenas após interação do usuário
+        let loaded = false;
+        const loadOnInteraction = () => {
+            if (!loaded) {
+                interactiveParticles = new InteractiveParticleSystem();
+                loaded = true;
+                document.removeEventListener('mousemove', loadOnInteraction);
+                document.removeEventListener('touchstart', loadOnInteraction);
+            }
+        };
+        document.addEventListener('mousemove', loadOnInteraction, { once: true });
+        document.addEventListener('touchstart', loadOnInteraction, { once: true });
+    } else {
+        // Carregar imediatamente em dispositivos mais potentes
+        interactiveParticles = new InteractiveParticleSystem();
     }
     
     // Garantir que os modais estão fechados
@@ -577,6 +1339,23 @@ async function carregarApostas() {
     }
 }
 
+// Função para animar contador de números
+function animateCounter(element, target, duration = 2000) {
+    const start = 0;
+    const increment = target / (duration / 16);
+    let current = start;
+    
+    const timer = setInterval(() => {
+        current += increment;
+        if (current >= target) {
+            element.textContent = target;
+            clearInterval(timer);
+        } else {
+            element.textContent = Math.floor(current);
+        }
+    }, 16);
+}
+
 function renderizarLista() {
     const container = document.getElementById('listaApostas');
     if (!container) return;
@@ -608,15 +1387,15 @@ function renderizarLista() {
                 <p class="hero-subtitle">Gerencie suas apostas de forma inteligente</p>
                 <div class="hero-stats">
                     <div class="hero-stat">
-                        <span class="hero-stat-number">${totalApostas}</span>
+                        <span class="hero-stat-number" data-count="${totalApostas}">0</span>
                         <span class="hero-stat-label">Apostas Ativas</span>
                     </div>
                     <div class="hero-stat">
-                        <span class="hero-stat-number">${totalParticipantes}</span>
+                        <span class="hero-stat-number" data-count="${totalParticipantes}">0</span>
                         <span class="hero-stat-label">Participantes</span>
                     </div>
                     <div class="hero-stat">
-                        <span class="hero-stat-number">${totalDiasRegistrados}</span>
+                        <span class="hero-stat-number" data-count="${totalDiasRegistrados}">0</span>
                         <span class="hero-stat-label">Dias Registrados</span>
                     </div>
                 </div>
@@ -632,18 +1411,156 @@ function renderizarLista() {
         const totalParticipantes = aposta.participantes.length;
 
         return `
-            <div class="aposta-card" onclick="mostrarDetalhes(${aposta.id})" style="animation-delay: ${0.1 + index * 0.1}s">
-                <h3>Aposta #${aposta.id}</h3>
-                <div class="info"><strong>Período:</strong> ${dataInicial} a ${dataFinal}</div>
-                <div class="info"><strong>Participantes:</strong> ${totalParticipantes}</div>
-                <div class="info"><strong>Dias registrados:</strong> ${totalDias}</div>
-                <div class="info"><strong>Limite de faltas:</strong> ${aposta.limiteFaltas}</div>
-                <div class="info"><strong>Valor:</strong> R$ ${aposta.valorInscricao.toFixed(2)}</div>
+            <div class="aposta-card" onclick="mostrarDetalhes(${aposta.id})" data-index="${index}" style="animation-delay: ${0.1 + index * 0.1}s">
+                <div class="card-glow"></div>
+                <div class="card-content">
+                    <h3>Aposta #${aposta.id}</h3>
+                    <div class="info"><strong>Período:</strong> ${dataInicial} a ${dataFinal}</div>
+                    <div class="info"><strong>Participantes:</strong> ${totalParticipantes}</div>
+                    <div class="info"><strong>Dias registrados:</strong> ${totalDias}</div>
+                    <div class="info"><strong>Limite de faltas:</strong> ${aposta.limiteFaltas}</div>
+                    <div class="info"><strong>Valor:</strong> R$ ${aposta.valorInscricao.toFixed(2)}</div>
+                </div>
             </div>
         `;
     }).join('');
 
     container.innerHTML = heroSection + cardsHTML;
+    
+    // Animar contadores após renderizar
+    setTimeout(() => {
+        const counters = container.querySelectorAll('.hero-stat-number[data-count]');
+        counters.forEach(counter => {
+            const target = parseInt(counter.getAttribute('data-count'));
+            animateCounter(counter, target);
+        });
+    }, 500);
+    
+    // Adicionar efeitos de parallax nos cards
+    setupCardParallax();
+}
+
+// Função para configurar efeito parallax nos cards
+function setupCardParallax() {
+    const cards = document.querySelectorAll('.aposta-card');
+    
+    cards.forEach(card => {
+        let particleCanvas = null;
+        let particleCtx = null;
+        let cardParticles = [];
+        
+        // Criar canvas de partículas para o card
+        const createCardParticleCanvas = () => {
+            particleCanvas = document.createElement('canvas');
+            particleCanvas.className = 'card-particles';
+            particleCanvas.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 1;
+                opacity: 0;
+                transition: opacity 0.3s;
+            `;
+            card.appendChild(particleCanvas);
+            particleCtx = particleCanvas.getContext('2d');
+            particleCanvas.width = card.offsetWidth;
+            particleCanvas.height = card.offsetHeight;
+            
+            // Criar partículas do card (desabilitado em dispositivos fracos)
+            if (!perfConfig.enableCardParticles) return;
+            
+            const cardParticleCount = perfConfig.isMobile ? 6 : 10;
+            for (let i = 0; i < cardParticleCount; i++) {
+                cardParticles.push({
+                    x: Math.random() * particleCanvas.width,
+                    y: Math.random() * particleCanvas.height,
+                    vx: (Math.random() - 0.5) * 2,
+                    vy: (Math.random() - 0.5) * 2,
+                    size: Math.random() * 2 + 1,
+                    life: Math.random() * 100 + 50,
+                    maxLife: Math.random() * 100 + 50
+                });
+            }
+        };
+        
+        createCardParticleCanvas();
+        
+        const animateCardParticles = () => {
+            if (!particleCtx || !particleCanvas) return;
+            
+            particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+            
+            cardParticles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                
+                if (p.life <= 0 || p.x < 0 || p.x > particleCanvas.width || p.y < 0 || p.y > particleCanvas.height) {
+                    p.x = Math.random() * particleCanvas.width;
+                    p.y = Math.random() * particleCanvas.height;
+                    p.life = p.maxLife;
+                }
+                
+                const alpha = p.life / p.maxLife;
+                particleCtx.fillStyle = `rgba(255, 228, 0, ${alpha * 0.6})`;
+                particleCtx.shadowBlur = 5;
+                particleCtx.shadowColor = '#FFE400';
+                particleCtx.beginPath();
+                particleCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                particleCtx.fill();
+                particleCtx.shadowBlur = 0;
+            });
+            
+            if (particleCanvas.style.opacity === '1') {
+                requestAnimationFrame(animateCardParticles);
+            }
+        };
+        
+        card.addEventListener('mousemove', (e) => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const centerX = rect.width / 2;
+            const centerY = rect.height / 2;
+            
+            const rotateX = (y - centerY) / 10;
+            const rotateY = (centerX - x) / 10;
+            
+            card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) translateZ(10px)`;
+            
+            // Criar partículas no ponto do mouse (apenas se não for dispositivo fraco)
+            if (interactiveParticles && !perfConfig.isLowEnd) {
+                interactiveParticles.createMiniExplosion(e.clientX, e.clientY);
+            }
+        });
+        
+        card.addEventListener('mouseenter', () => {
+            if (particleCanvas) {
+                particleCanvas.style.opacity = '1';
+                animateCardParticles();
+            }
+        });
+        
+        card.addEventListener('mouseleave', () => {
+            card.style.transform = 'perspective(1000px) rotateX(0) rotateY(0) translateZ(0)';
+            if (particleCanvas) {
+                particleCanvas.style.opacity = '0';
+            }
+        });
+        
+        // Redimensionar canvas quando card redimensionar
+        const resizeObserver = new ResizeObserver(() => {
+            if (particleCanvas && card.offsetWidth && card.offsetHeight) {
+                particleCanvas.width = card.offsetWidth;
+                particleCanvas.height = card.offsetHeight;
+            }
+        });
+        resizeObserver.observe(card);
+    });
 }
 
 async function criarAposta() {
@@ -677,8 +1594,9 @@ async function criarAposta() {
             document.getElementById('formNovaAposta').reset();
             await carregarApostas();
             notifications.success('Aposta criada com sucesso!');
-            // Usar router para navegar
-            router.navegar(`/aposta/${aposta.id}`);
+            // Usar router para navegar com os dados da aposta já carregados
+            // Isso evita race condition ao buscar a aposta recém-criada
+            router.navegarParaDetalhesComDados(aposta.id, aposta);
         } else {
             notifications.error('Erro ao criar aposta. Verifique os dados e tente novamente.');
         }
