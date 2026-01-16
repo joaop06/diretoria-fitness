@@ -4,6 +4,8 @@ const bodyParser = require('body-parser');
 const fs = require('fs').promises;
 const path = require('path');
 
+require('dotenv').config();
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
