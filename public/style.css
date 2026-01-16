@@ -123,8 +123,8 @@ header {
 }
 
 .btn-small {
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 5px 10px;
+    font-size: 11px;
     border: 2px solid var(--preto);
     box-shadow: 2px 2px 0 var(--preto);
 }
@@ -132,8 +132,8 @@ header {
 .btn-edit {
     background: var(--amarelo-primario);
     color: var(--preto);
-    padding: 6px 12px;
-    font-size: 12px;
+    padding: 5px 10px;
+    font-size: 11px;
     border: 2px solid var(--preto);
     box-shadow: 2px 2px 0 var(--preto);
 }
@@ -471,64 +471,74 @@ header {
 .dia-registrado {
     background: var(--branco);
     border: 2px solid var(--preto);
-    box-shadow: 3px 3px 0 var(--preto);
-    padding: 15px;
-    margin-bottom: 12px;
+    box-shadow: 2px 2px 0 var(--preto);
+    padding: 10px;
+    margin-bottom: 8px;
 }
 
 .dia-registrado-header {
     font-weight: 700;
     color: var(--preto);
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 14px;
+    font-size: 12px;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.3px;
     border-bottom: 2px solid var(--preto);
-    padding-bottom: 8px;
+    padding-bottom: 6px;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
 }
 
 .dia-registrado-botoes {
     display: flex;
-    gap: 10px;
+    gap: 6px;
     align-items: center;
 }
 
 .dia-registrado-participantes {
     display: flex;
     flex-wrap: wrap;
-    gap: 9px;
+    gap: 6px;
+}
+
+.dia-registrado-oculto {
+    display: none;
+}
+
+.btn-ver-mais-dias {
+    margin-top: 12px;
+    width: 100%;
+    text-align: center;
 }
 
 .dia-edicao {
-    margin-top: 12px;
-    padding-top: 12px;
+    margin-top: 10px;
+    padding-top: 10px;
     border-top: 2px solid var(--preto);
 }
 
 .dia-edicao-botoes {
     display: flex;
-    gap: 9px;
-    margin-top: 12px;
+    gap: 6px;
+    margin-top: 10px;
 }
 
 .dia-edicao-botoes .btn {
-    padding: 8px 16px;
-    font-size: 12px;
+    padding: 6px 12px;
+    font-size: 11px;
 }
 
 /* Status Badges */
 .status-badge {
-    padding: 6px 12px;
+    padding: 4px 8px;
     border-radius: 0;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.4px;
+    letter-spacing: 0.3px;
     border: 2px solid var(--preto);
     box-shadow: 2px 2px 0 var(--preto);
 }

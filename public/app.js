@@ -489,8 +489,11 @@ function renderizarDetalhes() {
             ${aposta.dias.map((dia, diaIndex) => {
                 const dataFormatada = parseLocalDate(dia.data).toLocaleDateString('pt-BR');
                 const diaId = `dia-${diaIndex}-${dia.data}`;
+                const LIMITE_DIAS_VISIVEIS = 5;
+                const deveOcultar = diaIndex >= LIMITE_DIAS_VISIVEIS;
+                const classeOculto = deveOcultar ? 'dia-registrado-oculto' : '';
                 return `
-                    <div class="dia-registrado" id="${diaId}">
+                    <div class="dia-registrado ${classeOculto}" id="${diaId}" data-dia-index="${diaIndex}">
                         <div class="dia-registrado-header">
                             ${dataFormatada}
                             <div class="dia-registrado-botoes">
@@ -532,6 +535,13 @@ function renderizarDetalhes() {
                     </div>
                 `;
             }).join('')}
+            ${aposta.dias.length > 5 ? `
+                <div class="btn-ver-mais-dias">
+                    <button class="btn btn-secondary" id="btn-ver-mais-dias" onclick="toggleVerMaisDias()">
+                        Ver todos os dias (${aposta.dias.length - 5} ocultos)
+                    </button>
+                </div>
+            ` : ''}
         </div>
 
         <button class="btn btn-gerar-imagem" onclick="gerarImagemTabela()">📊 Gerar Imagem da Tabela</button>
@@ -906,6 +916,38 @@ function setupModalConfirmacaoListeners() {
     modalListenersConfigurados = true;
 }
 
+// Função para alternar exibição de todos os dias
+function toggleVerMaisDias() {
+    const btnVerMais = document.getElementById('btn-ver-mais-dias');
+    const aposta = estado.apostaAtual;
+    
+    if (!btnVerMais || !aposta) return;
+    
+    const LIMITE_DIAS_VISIVEIS = 5;
+    const estaExpandido = btnVerMais.dataset.expandido === 'true';
+    
+    // Selecionar todos os dias registrados
+    const todosDias = document.querySelectorAll('.dia-registrado');
+    
+    if (estaExpandido) {
+        // Colapsar: ocultar dias além do limite
+        todosDias.forEach((dia, index) => {
+            if (index >= LIMITE_DIAS_VISIVEIS) {
+                dia.classList.add('dia-registrado-oculto');
+            }
+        });
+        btnVerMais.textContent = `Ver todos os dias (${aposta.dias.length - LIMITE_DIAS_VISIVEIS} ocultos)`;
+        btnVerMais.dataset.expandido = 'false';
+    } else {
+        // Expandir: mostrar todos os dias
+        todosDias.forEach(dia => {
+            dia.classList.remove('dia-registrado-oculto');
+        });
+        btnVerMais.textContent = 'Ocultar dias extras';
+        btnVerMais.dataset.expandido = 'true';
+    }
+}
+
 // Tornar funções globais para uso em onclick
 window.mostrarDetalhes = mostrarDetalhes;
 window.mostrarLista = mostrarLista;
@@ -916,3 +958,4 @@ window.salvarEdicaoDia = salvarEdicaoDia;
 window.cancelarEdicaoDia = cancelarEdicaoDia;
 window.abrirModalExclusaoAposta = abrirModalExclusaoAposta;
 window.abrirModalExclusaoDia = abrirModalExclusaoDia;
+window.toggleVerMaisDias = toggleVerMaisDias;
