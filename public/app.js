@@ -1,5 +1,97 @@
 const API_BASE = '/api/apostas';
 
+// ============================================
+// SISTEMA DE NOTIFICAÇÕES (TOAST)
+// ============================================
+
+class NotificationSystem {
+    constructor() {
+        this.container = null;
+        this.init();
+    }
+
+    init() {
+        // Criar container de notificações se não existir
+        if (!document.getElementById('notification-container')) {
+            const container = document.createElement('div');
+            container.id = 'notification-container';
+            container.className = 'notification-container';
+            document.body.appendChild(container);
+            this.container = container;
+        } else {
+            this.container = document.getElementById('notification-container');
+        }
+    }
+
+    show(message, type = 'info', duration = 5000) {
+        const notification = document.createElement('div');
+        notification.className = `notification notification-${type}`;
+        
+        // Ícone baseado no tipo
+        const icons = {
+            success: '✓',
+            error: '✗',
+            warning: '⚠️',
+            info: 'ℹ️'
+        };
+        
+        notification.innerHTML = `
+            <div class="notification-content">
+                <span class="notification-icon">${icons[type] || icons.info}</span>
+                <span class="notification-message">${message}</span>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+            </div>
+        `;
+        
+        this.container.appendChild(notification);
+        
+        // Trigger animação de entrada
+        setTimeout(() => {
+            notification.classList.add('notification-show');
+        }, 10);
+        
+        // Auto-remover após duração
+        if (duration > 0) {
+            setTimeout(() => {
+                this.remove(notification);
+            }, duration);
+        }
+        
+        return notification;
+    }
+
+    remove(notification) {
+        if (notification && notification.parentElement) {
+            notification.classList.remove('notification-show');
+            notification.classList.add('notification-hide');
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.parentElement.removeChild(notification);
+                }
+            }, 300);
+        }
+    }
+
+    success(message, duration = 5000) {
+        return this.show(message, 'success', duration);
+    }
+
+    error(message, duration = 6000) {
+        return this.show(message, 'error', duration);
+    }
+
+    warning(message, duration = 5000) {
+        return this.show(message, 'warning', duration);
+    }
+
+    info(message, duration = 5000) {
+        return this.show(message, 'info', duration);
+    }
+}
+
+// Instanciar sistema de notificações
+const notifications = new NotificationSystem();
+
 // Função auxiliar para converter string de data (YYYY-MM-DD) para Date no timezone local
 function parseLocalDate(dateString) {
     const [year, month, day] = dateString.split('-').map(Number);
@@ -172,7 +264,7 @@ class Router {
             
         } catch (error) {
             console.error('Erro ao carregar detalhes:', error);
-            alert('Erro ao carregar aposta. Redirecionando para a lista...');
+            notifications.error('Erro ao carregar aposta. Redirecionando para a lista...');
             this.navegarParaLista();
         }
     }
@@ -379,14 +471,15 @@ async function criarAposta() {
             document.getElementById('modalNovaAposta').style.display = 'none';
             document.getElementById('formNovaAposta').reset();
             await carregarApostas();
+            notifications.success('Aposta criada com sucesso!');
             // Usar router para navegar
             router.navegar(`/aposta/${aposta.id}`);
         } else {
-            alert('Erro ao criar aposta');
+            notifications.error('Erro ao criar aposta. Verifique os dados e tente novamente.');
         }
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao criar aposta');
+        notifications.error('Erro ao criar aposta. Verifique sua conexão e tente novamente.');
     }
 }
 
@@ -567,7 +660,7 @@ function renderizarDetalhes() {
 async function registrarDia() {
     const data = document.getElementById('dataDia').value;
     if (!data) {
-        alert('Selecione uma data');
+        notifications.warning('Selecione uma data');
         return;
     }
 
@@ -592,21 +685,22 @@ async function registrarDia() {
             if (dataDiaInput) {
                 dataDiaInput.value = '';
             }
+            notifications.success('Dia registrado com sucesso!');
         } else {
             // Tentar obter mensagem de erro personalizada do servidor
             const errorData = await response.json().catch(() => ({}));
             
             if (errorData.error && errorData.message) {
                 // Exibir mensagem personalizada do servidor
-                alert(`⚠️ ${errorData.message}`);
+                notifications.warning(errorData.message);
             } else {
                 // Mensagem genérica caso não haja mensagem específica
-                alert('Erro ao registrar dia. Verifique os dados e tente novamente.');
+                notifications.error('Erro ao registrar dia. Verifique os dados e tente novamente.');
             }
         }
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao registrar dia. Verifique sua conexão e tente novamente.');
+        notifications.error('Erro ao registrar dia. Verifique sua conexão e tente novamente.');
     }
 }
 
@@ -722,10 +816,10 @@ function gerarImagemTabela() {
             link.click();
         }).catch(error => {
             console.error('Erro ao gerar imagem:', error);
-            alert('Erro ao gerar imagem. Tente novamente.');
+            notifications.error('Erro ao gerar imagem. Tente novamente.');
         });
     } else {
-        alert('Biblioteca de geração de imagem não carregada. Recarregue a página.');
+        notifications.error('Biblioteca de geração de imagem não carregada. Recarregue a página.');
     }
 }
 
@@ -763,21 +857,22 @@ async function salvarEdicaoDia(data, diaIndex) {
             estado.apostaAtual = await response.json();
             renderizarDetalhes();
             setupEventListeners(); // Reconfigurar listeners após renderizar
+            notifications.success('Alterações salvas com sucesso!');
         } else {
             // Tentar obter mensagem de erro personalizada do servidor
             const errorData = await response.json().catch(() => ({}));
             
             if (errorData.error && errorData.message) {
                 // Exibir mensagem personalizada do servidor
-                alert(`⚠️ ${errorData.message}`);
+                notifications.warning(errorData.message);
             } else {
                 // Mensagem genérica caso não haja mensagem específica
-                alert('Erro ao salvar alterações. Verifique os dados e tente novamente.');
+                notifications.error('Erro ao salvar alterações. Verifique os dados e tente novamente.');
             }
         }
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao salvar alterações. Verifique sua conexão e tente novamente.');
+        notifications.error('Erro ao salvar alterações. Verifique sua conexão e tente novamente.');
     }
 }
 
@@ -840,15 +935,15 @@ async function excluirAposta() {
 
         if (response.ok) {
             fecharModalExclusaoAposta();
-            alert('Aposta excluída com sucesso!');
+            notifications.success('Aposta excluída com sucesso!');
             // Navegar para a lista de apostas
             router.navegar('/apostas');
         } else {
-            alert('Erro ao excluir aposta');
+            notifications.error('Erro ao excluir aposta');
         }
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao excluir aposta');
+        notifications.error('Erro ao excluir aposta');
     }
 }
 
@@ -866,12 +961,13 @@ async function excluirDia() {
             fecharModalExclusaoDia();
             renderizarDetalhes();
             setupEventListeners();
+            notifications.success('Dia excluído com sucesso!');
         } else {
-            alert('Erro ao excluir dia');
+            notifications.error('Erro ao excluir dia');
         }
     } catch (error) {
         console.error('Erro:', error);
-        alert('Erro ao excluir dia');
+        notifications.error('Erro ao excluir dia');
     }
 }
 
