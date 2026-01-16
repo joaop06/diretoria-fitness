@@ -72,13 +72,65 @@ app.get('/api/apostas/:id', async (req, res) => {
   }
 });
 
+// Função auxiliar para calcular dias corridos entre duas datas
+function calcularDiasCorridos(dataInicial, dataFinal) {
+  const [anoInicio, mesInicio, diaInicio] = dataInicial.split('-').map(Number);
+  const [anoFim, mesFim, diaFim] = dataFinal.split('-').map(Number);
+  
+  const inicio = new Date(anoInicio, mesInicio - 1, diaInicio);
+  const fim = new Date(anoFim, mesFim - 1, diaFim);
+  
+  // Calcular diferença em milissegundos e converter para dias
+  const diffTime = fim - inicio;
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  
+  // Adicionar 1 para incluir ambos os dias (inicial e final)
+  return diffDays + 1;
+}
+
 // Rota: Criar nova aposta
 app.post('/api/apostas', async (req, res) => {
   try {
     const { dataInicial, dataFinal, limiteFaltas, valorInscricao, participantes } = req.body;
     
     if (!dataInicial || !dataFinal || !limiteFaltas || !valorInscricao) {
-      return res.status(400).json({ error: 'Campos obrigatórios faltando' });
+      return res.status(400).json({ 
+        error: 'CAMPOS_FALTANDO',
+        message: 'Campos obrigatórios faltando' 
+      });
+    }
+    
+    // Validação 1: Data inicial não pode ser anterior à data atual (pode ser o mesmo dia)
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dataInicialDate = new Date(dataInicial + 'T00:00:00');
+    dataInicialDate.setHours(0, 0, 0, 0);
+    
+    if (dataInicialDate < hoje) {
+      const hojeFormatado = hoje.toLocaleDateString('pt-BR');
+      return res.status(400).json({ 
+        error: 'DATA_INICIAL_PASSADA',
+        message: `A data inicial não pode ser anterior à data atual (${hojeFormatado}).` 
+      });
+    }
+    
+    // Validação 2: Data inicial deve ser anterior à data final
+    if (dataInicial >= dataFinal) {
+      return res.status(400).json({ 
+        error: 'DATA_INVALIDA',
+        message: 'A data inicial deve ser anterior à data final. As datas não podem ser iguais.' 
+      });
+    }
+    
+    // Validação 3: Limite de faltas não pode ser maior que dias corridos
+    const diasCorridos = calcularDiasCorridos(dataInicial, dataFinal);
+    const limiteFaltasInt = parseInt(limiteFaltas);
+    
+    if (limiteFaltasInt > diasCorridos) {
+      return res.status(400).json({ 
+        error: 'LIMITE_FALTAS_INVALIDO',
+        message: `O limite de faltas (${limiteFaltasInt}) não pode ser maior que a quantidade de dias corridos da aposta (${diasCorridos} dias).` 
+      });
     }
     
     const id = await getNextId();
@@ -86,7 +138,7 @@ app.post('/api/apostas', async (req, res) => {
       id,
       dataInicial,
       dataFinal,
-      limiteFaltas: parseInt(limiteFaltas),
+      limiteFaltas: limiteFaltasInt,
       valorInscricao: parseFloat(valorInscricao),
       participantes: participantes || [],
       dias: []

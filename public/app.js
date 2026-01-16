@@ -1291,6 +1291,18 @@ function setupEventListeners() {
     btnNovaAposta.parentNode.replaceChild(novoBtnNovaAposta, btnNovaAposta);
     
     document.getElementById('btnNovaAposta').addEventListener('click', () => {
+        // Definir data mínima como hoje (formato YYYY-MM-DD)
+        const hoje = new Date();
+        const ano = hoje.getFullYear();
+        const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+        const dia = String(hoje.getDate()).padStart(2, '0');
+        const dataMinima = `${ano}-${mes}-${dia}`;
+        
+        const dataInicialInput = document.getElementById('dataInicial');
+        if (dataInicialInput) {
+            dataInicialInput.setAttribute('min', dataMinima);
+        }
+        
         modal.style.display = 'block';
     });
 
@@ -1311,6 +1323,123 @@ function setupEventListeners() {
             e.preventDefault();
             await criarAposta();
         });
+        
+        // Validações em tempo real
+        const dataInicialInput = document.getElementById('dataInicial');
+        const dataFinalInput = document.getElementById('dataFinal');
+        const limiteFaltasInput = document.getElementById('limiteFaltas');
+        
+        // Função para validar e mostrar feedback
+        const validarFormulario = () => {
+            const dataInicial = dataInicialInput.value;
+            const dataFinal = dataFinalInput.value;
+            const limiteFaltas = parseInt(limiteFaltasInput.value);
+            
+            // Limpar mensagens de erro/info anteriores
+            const mensagens = form.querySelectorAll('.erro-validacao, .info-validacao');
+            mensagens.forEach(msg => msg.remove());
+            
+            let temErro = false;
+            
+            // Validar data inicial não pode ser anterior à data atual
+            if (dataInicial) {
+                const hoje = new Date();
+                hoje.setHours(0, 0, 0, 0);
+                const dataInicialDate = new Date(dataInicial + 'T00:00:00');
+                dataInicialDate.setHours(0, 0, 0, 0);
+                
+                if (dataInicialDate < hoje) {
+                    const hojeFormatado = hoje.toLocaleDateString('pt-BR');
+                    const erroMsg = document.createElement('div');
+                    erroMsg.className = 'erro-validacao';
+                    erroMsg.style.cssText = 'color: #ff4444; font-size: 0.9em; margin-top: 5px;';
+                    erroMsg.textContent = `A data inicial não pode ser anterior à data atual (${hojeFormatado}).`;
+                    dataInicialInput.parentElement.appendChild(erroMsg);
+                    temErro = true;
+                    // Remover max do limite de faltas se data inicial inválida
+                    limiteFaltasInput.removeAttribute('max');
+                }
+            }
+            
+            // Validar datas
+            if (dataInicial && dataFinal) {
+                if (dataInicial >= dataFinal) {
+                    const erroMsg = document.createElement('div');
+                    erroMsg.className = 'erro-validacao';
+                    erroMsg.style.cssText = 'color: #ff4444; font-size: 0.9em; margin-top: 5px;';
+                    erroMsg.textContent = 'A data inicial deve ser anterior à data final.';
+                    dataFinalInput.parentElement.appendChild(erroMsg);
+                    temErro = true;
+                    // Remover max do limite de faltas se datas inválidas
+                    limiteFaltasInput.removeAttribute('max');
+                } else if (!temErro) {
+                    // Calcular dias corridos e atualizar max do limite de faltas
+                    const diasCorridos = calcularDiasCorridos(dataInicial, dataFinal);
+                    limiteFaltasInput.setAttribute('max', diasCorridos);
+                    
+                    // Mostrar informação sobre o período
+                    const infoMsg = document.createElement('div');
+                    infoMsg.className = 'info-validacao';
+                    infoMsg.style.cssText = 'color: #4CAF50; font-size: 0.85em; margin-top: 5px;';
+                    infoMsg.textContent = `Período: ${diasCorridos} dias corridos. Limite máximo de faltas: ${diasCorridos}.`;
+                    limiteFaltasInput.parentElement.appendChild(infoMsg);
+                    
+                    // Validar limite de faltas se as datas estiverem corretas
+                    if (!isNaN(limiteFaltas) && limiteFaltas > 0) {
+                        if (limiteFaltas > diasCorridos) {
+                            const erroMsg = document.createElement('div');
+                            erroMsg.className = 'erro-validacao';
+                            erroMsg.style.cssText = 'color: #ff4444; font-size: 0.9em; margin-top: 5px;';
+                            erroMsg.textContent = `O limite de faltas não pode ser maior que ${diasCorridos} dias (período da aposta).`;
+                            limiteFaltasInput.parentElement.appendChild(erroMsg);
+                            temErro = true;
+                        }
+                    }
+                }
+            } else {
+                // Se as datas não estiverem preenchidas, remover max
+                limiteFaltasInput.removeAttribute('max');
+            }
+            
+            // Desabilitar/habilitar botão de submit baseado na validação
+            const btnSubmit = form.querySelector('button[type="submit"]');
+            if (btnSubmit) {
+                btnSubmit.disabled = temErro;
+                btnSubmit.style.opacity = temErro ? '0.6' : '1';
+                btnSubmit.style.cursor = temErro ? 'not-allowed' : 'pointer';
+            }
+        };
+        
+        // Adicionar listeners para validação em tempo real
+        if (dataInicialInput) {
+            dataInicialInput.addEventListener('change', validarFormulario);
+            dataInicialInput.addEventListener('input', validarFormulario);
+        }
+        
+        if (dataFinalInput) {
+            dataFinalInput.addEventListener('change', validarFormulario);
+            dataFinalInput.addEventListener('input', validarFormulario);
+        }
+        
+        if (limiteFaltasInput) {
+            limiteFaltasInput.addEventListener('change', validarFormulario);
+            limiteFaltasInput.addEventListener('input', validarFormulario);
+        }
+        
+        // Limpar validações ao fechar o modal
+        if (close) {
+            const closeOriginal = close.onclick;
+            close.addEventListener('click', () => {
+                const mensagens = form.querySelectorAll('.erro-validacao, .info-validacao');
+                mensagens.forEach(msg => msg.remove());
+                const btnSubmit = form.querySelector('button[type="submit"]');
+                if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.style.opacity = '1';
+                    btnSubmit.style.cursor = 'pointer';
+                }
+            });
+        }
     }
 
     // Botão voltar
@@ -1440,6 +1569,113 @@ function renderizarLista() {
     setupCardParallax();
 }
 
+// Função para configurar efeitos de partículas na tela de detalhes
+function setupDetalhesParticleEffects() {
+    if (!perfConfig.enableCardParticles) return;
+    
+    const diasRegistrados = document.querySelectorAll('.dia-registrado');
+    
+    diasRegistrados.forEach(dia => {
+        let particleCanvas = null;
+        let particleCtx = null;
+        let cardParticles = [];
+        
+        const createDiaParticleCanvas = () => {
+            particleCanvas = document.createElement('canvas');
+            particleCanvas.className = 'dia-particles';
+            particleCanvas.style.cssText = `
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                z-index: 0;
+                opacity: 0;
+                transition: opacity 0.3s;
+            `;
+            // Inserir canvas como primeiro filho para garantir que fique atrás do conteúdo
+            if (dia.firstChild) {
+                dia.insertBefore(particleCanvas, dia.firstChild);
+            } else {
+                dia.appendChild(particleCanvas);
+            }
+            particleCtx = particleCanvas.getContext('2d');
+            particleCanvas.width = dia.offsetWidth;
+            particleCanvas.height = dia.offsetHeight;
+            
+            const particleCount = perfConfig.isMobile ? 4 : 6;
+            for (let i = 0; i < particleCount; i++) {
+                cardParticles.push({
+                    x: Math.random() * particleCanvas.width,
+                    y: Math.random() * particleCanvas.height,
+                    vx: (Math.random() - 0.5) * 1.5,
+                    vy: (Math.random() - 0.5) * 1.5,
+                    size: Math.random() * 1.5 + 0.5,
+                    life: Math.random() * 80 + 40,
+                    maxLife: Math.random() * 80 + 40
+                });
+            }
+        };
+        
+        createDiaParticleCanvas();
+        
+        const animateDiaParticles = () => {
+            if (!particleCtx || !particleCanvas) return;
+            
+            particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+            
+            cardParticles.forEach((p, i) => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life--;
+                
+                if (p.life <= 0 || p.x < 0 || p.x > particleCanvas.width || p.y < 0 || p.y > particleCanvas.height) {
+                    p.x = Math.random() * particleCanvas.width;
+                    p.y = Math.random() * particleCanvas.height;
+                    p.life = p.maxLife;
+                }
+                
+                const alpha = p.life / p.maxLife;
+                particleCtx.fillStyle = `rgba(255, 228, 0, ${alpha * 0.5})`;
+                if (!perfConfig.isLowEnd) {
+                    particleCtx.shadowBlur = 3;
+                    particleCtx.shadowColor = '#FFE400';
+                }
+                particleCtx.beginPath();
+                particleCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                particleCtx.fill();
+                particleCtx.shadowBlur = 0;
+            });
+            
+            if (particleCanvas.style.opacity === '1') {
+                requestAnimationFrame(animateDiaParticles);
+            }
+        };
+        
+        dia.addEventListener('mouseenter', () => {
+            if (particleCanvas) {
+                particleCanvas.style.opacity = '1';
+                animateDiaParticles();
+            }
+        });
+        
+        dia.addEventListener('mouseleave', () => {
+            if (particleCanvas) {
+                particleCanvas.style.opacity = '0';
+            }
+        });
+        
+        const resizeObserver = new ResizeObserver(() => {
+            if (particleCanvas && dia.offsetWidth && dia.offsetHeight) {
+                particleCanvas.width = dia.offsetWidth;
+                particleCanvas.height = dia.offsetHeight;
+            }
+        });
+        resizeObserver.observe(dia);
+    });
+}
+
 // Função para configurar efeito parallax nos cards
 function setupCardParallax() {
     const cards = document.querySelectorAll('.aposta-card');
@@ -1563,12 +1799,53 @@ function setupCardParallax() {
     });
 }
 
+// Função auxiliar para calcular dias corridos entre duas datas
+function calcularDiasCorridos(dataInicial, dataFinal) {
+    const [anoInicio, mesInicio, diaInicio] = dataInicial.split('-').map(Number);
+    const [anoFim, mesFim, diaFim] = dataFinal.split('-').map(Number);
+    
+    const inicio = new Date(anoInicio, mesInicio - 1, diaInicio);
+    const fim = new Date(anoFim, mesFim - 1, diaFim);
+    
+    // Calcular diferença em milissegundos e converter para dias
+    const diffTime = fim - inicio;
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Adicionar 1 para incluir ambos os dias (inicial e final)
+    return diffDays + 1;
+}
+
 async function criarAposta() {
     const dataInicial = document.getElementById('dataInicial').value;
     const dataFinal = document.getElementById('dataFinal').value;
-    const limiteFaltas = document.getElementById('limiteFaltas').value;
+    const limiteFaltas = parseInt(document.getElementById('limiteFaltas').value);
     const valorInscricao = document.getElementById('valorInscricao').value;
     const participantesText = document.getElementById('participantes').value;
+    
+    // Validação 1: Data inicial não pode ser anterior à data atual (pode ser o mesmo dia)
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dataInicialDate = new Date(dataInicial + 'T00:00:00');
+    dataInicialDate.setHours(0, 0, 0, 0);
+    
+    if (dataInicialDate < hoje) {
+        const hojeFormatado = hoje.toLocaleDateString('pt-BR');
+        notifications.error(`A data inicial não pode ser anterior à data atual (${hojeFormatado}).`);
+        return;
+    }
+
+    // Validação 2: Data inicial deve ser anterior à data final
+    if (dataInicial >= dataFinal) {
+        notifications.error('A data inicial deve ser anterior à data final. As datas não podem ser iguais.');
+        return;
+    }
+
+    // Validação 3: Calcular dias corridos e validar limite de faltas
+    const diasCorridos = calcularDiasCorridos(dataInicial, dataFinal);
+    if (limiteFaltas > diasCorridos) {
+        notifications.error(`O limite de faltas (${limiteFaltas}) não pode ser maior que a quantidade de dias corridos da aposta (${diasCorridos} dias).`);
+        return;
+    }
     
     const participantes = participantesText
         .split('\n')
@@ -1598,7 +1875,14 @@ async function criarAposta() {
             // Isso evita race condition ao buscar a aposta recém-criada
             router.navegarParaDetalhesComDados(aposta.id, aposta);
         } else {
-            notifications.error('Erro ao criar aposta. Verifique os dados e tente novamente.');
+            // Tentar obter mensagem de erro personalizada do servidor
+            const errorData = await response.json().catch(() => ({}));
+            
+            if (errorData.error && errorData.message) {
+                notifications.error(errorData.message);
+            } else {
+                notifications.error('Erro ao criar aposta. Verifique os dados e tente novamente.');
+            }
         }
     } catch (error) {
         console.error('Erro:', error);
@@ -1646,26 +1930,47 @@ function renderizarDetalhes() {
         });
     });
 
-    container.innerHTML = `
-        <div class="detalhes-header">
-            <h2>Aposta #${aposta.id}</h2>
-            <button class="btn btn-danger" onclick="abrirModalExclusaoAposta()">🗑️ Excluir Aposta</button>
+    // Hero Section para detalhes
+    const heroSection = `
+        <div class="detalhes-hero-section">
+            <div class="detalhes-hero-content">
+                <div class="detalhes-hero-left">
+                    <h1 class="detalhes-hero-title">Aposta #${aposta.id}</h1>
+                    <p class="detalhes-hero-subtitle">${dataInicial} até ${dataFinal}</p>
+                </div>
+                <div class="detalhes-hero-stats">
+                    <div class="detalhes-hero-stat">
+                        <span class="detalhes-hero-stat-number" data-count="${aposta.participantes.length}">0</span>
+                        <span class="detalhes-hero-stat-label">Participantes</span>
+                    </div>
+                    <div class="detalhes-hero-stat">
+                        <span class="detalhes-hero-stat-number" data-count="${aposta.dias.length}">0</span>
+                        <span class="detalhes-hero-stat-label">Dias Registrados</span>
+                    </div>
+                    <div class="detalhes-hero-stat">
+                        <span class="detalhes-hero-stat-number">R$ ${aposta.valorInscricao.toFixed(2)}</span>
+                        <span class="detalhes-hero-stat-label">Valor da Aposta</span>
+                    </div>
+                </div>
+            </div>
         </div>
-        
+    `;
+
+    container.innerHTML = heroSection + `
         <div class="detalhes-info">
-            <div class="detalhes-info-item">
+            <div class="detalhes-info-item detalhes-info-animated" style="animation-delay: 0.1s">
                 <strong>Data Inicial</strong>
                 ${dataInicial}
             </div>
-            <div class="detalhes-info-item">
+            <div class="detalhes-info-item detalhes-info-animated" style="animation-delay: 0.2s">
                 <strong>Data Final</strong>
                 ${dataFinal}
             </div>
-            <div class="detalhes-info-item">
+            <div class="detalhes-info-item detalhes-info-animated" style="animation-delay: 0.3s">
                 <strong>Limite de Faltas</strong>
                 ${aposta.limiteFaltas}
             </div>
-            <div class="detalhes-info-item">
+            <div class="detalhes-info-item detalhes-info-animated" style="animation-delay: 0.4s">
                 <strong>Valor da Inscrição</strong>
                 R$ ${aposta.valorInscricao.toFixed(2)}
             </div>
@@ -1674,8 +1979,8 @@ function renderizarDetalhes() {
         <div class="participantes-section">
             <h3>Participantes (${aposta.participantes.length})</h3>
             <div class="participantes-list">
-                ${aposta.participantes.map(p => `
-                    <span class="participante-tag">
+                ${aposta.participantes.map((p, index) => `
+                    <span class="participante-tag participante-tag-animated" style="animation-delay: ${0.1 + index * 0.05}s">
                         ${p} 
                         <span class="faltas-count">(${faltasPorParticipante[p]} faltas)</span>
                     </span>
@@ -1700,7 +2005,14 @@ function renderizarDetalhes() {
         </div>
 
         <div class="dias-registrados">
-            <h3>Dias Registrados (${aposta.dias.length})</h3>
+            <div class="dias-registrados-header">
+                <h3>Dias Registrados (${aposta.dias.length})</h3>
+                ${aposta.dias.length > 2 ? `
+                    <button class="btn btn-toggle-dias" id="btn-ver-mais-dias" onclick="toggleVerMaisDias()">
+                        Ver todos os dias (${aposta.dias.length - 2} ocultos)
+                    </button>
+                ` : ''}
+            </div>
             ${aposta.dias.length === 0 ? '<p>Nenhum dia registrado ainda.</p>' : ''}
             <div class="dias-registrados-grid">
             ${(() => {
@@ -1721,43 +2033,46 @@ function renderizarDetalhes() {
                     const deveOcultar = diaIndex >= LIMITE_DIAS_VISIVEIS;
                     const classeOculto = deveOcultar ? 'dia-registrado-oculto' : '';
                     return `
-                        <div class="dia-registrado ${classeOculto}" id="${diaId}" data-dia-index="${diaIndexOriginal}">
-                            <div class="dia-registrado-header">
-                                ${dataFormatada}
-                                <div class="dia-registrado-botoes">
-                                    <button class="btn btn-edit" onclick="toggleEdicaoDia('${dia.data}', ${diaIndexOriginal})" id="btn-edit-${diaIndexOriginal}">
-                                        ✏️ Editar
-                                    </button>
-                                    <button class="btn btn-danger btn-small" onclick="abrirModalExclusaoDia('${dia.data}', '${dataFormatada}')">
-                                        🗑️ Excluir
-                                    </button>
+                        <div class="dia-registrado ${classeOculto} dia-registrado-animated" id="${diaId}" data-dia-index="${diaIndexOriginal}" style="animation-delay: ${0.1 + diaIndex * 0.1}s">
+                            <div class="dia-registrado-glow"></div>
+                            <div class="dia-registrado-content">
+                                <div class="dia-registrado-header">
+                                    ${dataFormatada}
+                                    <div class="dia-registrado-botoes">
+                                        <button class="btn btn-edit" onclick="toggleEdicaoDia('${dia.data}', ${diaIndexOriginal})" id="btn-edit-${diaIndexOriginal}">
+                                            ✏️ Editar
+                                        </button>
+                                        <button class="btn btn-danger btn-small" onclick="abrirModalExclusaoDia('${dia.data}', '${dataFormatada}')">
+                                            🗑️ Excluir
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="dia-registrado-participantes" id="participantes-${diaIndexOriginal}">
-                                ${aposta.participantes.map(p => {
-                                    const presente = dia.participantes[p];
-                                    return `
-                                        <span class="status-badge ${presente ? 'status-presente' : 'status-falta'}">
-                                            ${p}: ${presente ? '✓ Presente' : '✗ Falta'}
-                                        </span>
-                                    `;
-                                }).join('')}
-                            </div>
-                            <div class="dia-edicao" id="edicao-${diaIndexOriginal}" style="display: none;">
-                                <div class="checkboxes-grid">
+                                <div class="dia-registrado-participantes" id="participantes-${diaIndexOriginal}">
                                     ${aposta.participantes.map(p => {
                                         const presente = dia.participantes[p];
                                         return `
-                                            <div class="checkbox-item">
-                                                <input type="checkbox" id="edit-check-${diaIndexOriginal}-${p}" ${presente ? 'checked' : ''}>
-                                                <label for="edit-check-${diaIndexOriginal}-${p}">${p}</label>
-                                            </div>
+                                            <span class="status-badge ${presente ? 'status-presente' : 'status-falta'} status-badge-animated">
+                                                ${p}: ${presente ? '✓ Presente' : '✗ Falta'}
+                                            </span>
                                         `;
                                     }).join('')}
                                 </div>
-                                <div class="dia-edicao-botoes">
-                                    <button class="btn btn-primary" onclick="salvarEdicaoDia('${dia.data}', ${diaIndexOriginal})">💾 Salvar</button>
-                                    <button class="btn btn-secondary" onclick="cancelarEdicaoDia('${dia.data}', ${diaIndexOriginal})">❌ Cancelar</button>
+                                <div class="dia-edicao" id="edicao-${diaIndexOriginal}" style="display: none;">
+                                    <div class="checkboxes-grid">
+                                        ${aposta.participantes.map(p => {
+                                            const presente = dia.participantes[p];
+                                            return `
+                                                <div class="checkbox-item">
+                                                    <input type="checkbox" id="edit-check-${diaIndexOriginal}-${p}" ${presente ? 'checked' : ''}>
+                                                    <label for="edit-check-${diaIndexOriginal}-${p}">${p}</label>
+                                                </div>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                    <div class="dia-edicao-botoes">
+                                        <button class="btn btn-primary" onclick="salvarEdicaoDia('${dia.data}', ${diaIndexOriginal})">💾 Salvar</button>
+                                        <button class="btn btn-secondary" onclick="cancelarEdicaoDia('${dia.data}', ${diaIndexOriginal})">❌ Cancelar</button>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1765,19 +2080,24 @@ function renderizarDetalhes() {
                 }).join('');
             })()}
             </div>
-            ${aposta.dias.length > 2 ? `
-                <div class="btn-ver-mais-dias">
-                    <button class="btn btn-secondary" id="btn-ver-mais-dias" onclick="toggleVerMaisDias()">
-                        Ver todos os dias (${aposta.dias.length - 2} ocultos)
-                    </button>
-                </div>
-            ` : ''}
         </div>
 
         <button class="btn btn-gerar-imagem" onclick="gerarImagemTabela()">📊 Gerar Imagem da Tabela</button>
         
         <div id="tabelaImagem" class="tabela-container"></div>
     `;
+    
+    // Animar contadores após renderizar
+    setTimeout(() => {
+        const counters = container.querySelectorAll('.detalhes-hero-stat-number[data-count]');
+        counters.forEach(counter => {
+            const target = parseInt(counter.getAttribute('data-count'));
+            animateCounter(counter, target);
+        });
+    }, 500);
+    
+    // Adicionar efeitos de partículas nos cards de dias
+    setupDetalhesParticleEffects();
 }
 
 async function registrarDia() {
@@ -1827,10 +2147,40 @@ async function registrarDia() {
     }
 }
 
+// Função auxiliar para gerar todas as datas entre duas datas
+function gerarTodasDatasPeriodo(dataInicial, dataFinal) {
+    const datas = [];
+    const [anoInicio, mesInicio, diaInicio] = dataInicial.split('-').map(Number);
+    const [anoFim, mesFim, diaFim] = dataFinal.split('-').map(Number);
+    
+    const inicio = new Date(anoInicio, mesInicio - 1, diaInicio);
+    const fim = new Date(anoFim, mesFim - 1, diaFim);
+    
+    const dataAtual = new Date(inicio);
+    while (dataAtual <= fim) {
+        const ano = dataAtual.getFullYear();
+        const mes = String(dataAtual.getMonth() + 1).padStart(2, '0');
+        const dia = String(dataAtual.getDate()).padStart(2, '0');
+        datas.push(`${ano}-${mes}-${dia}`);
+        dataAtual.setDate(dataAtual.getDate() + 1);
+    }
+    
+    return datas;
+}
+
 function gerarImagemTabela() {
     const aposta = estado.apostaAtual;
     
-    // Calcular faltas por participante
+    // Gerar todas as datas do período
+    const todasDatas = gerarTodasDatasPeriodo(aposta.dataInicial, aposta.dataFinal);
+    
+    // Criar um mapa de dias registrados para acesso rápido
+    const diasRegistradosMap = {};
+    aposta.dias.forEach(dia => {
+        diasRegistradosMap[dia.data] = dia;
+    });
+    
+    // Calcular faltas por participante (apenas nos dias registrados)
     const faltasPorParticipante = {};
     aposta.participantes.forEach(p => {
         faltasPorParticipante[p] = 0;
@@ -1847,56 +2197,67 @@ function gerarImagemTabela() {
     // Verificar se algum participante já perdeu
     const participantesPerdidos = aposta.participantes.filter(p => faltasPorParticipante[p] > aposta.limiteFaltas);
     
-    // Calcular número de dias
-    const totalDias = aposta.dias.length;
+    // Calcular número total de dias do período (não apenas os registrados)
+    const totalDias = todasDatas.length;
     
     // Formatar datas
     const dataInicialFormatada = parseLocalDate(aposta.dataInicial).toLocaleDateString('pt-BR');
     const dataFinalFormatada = parseLocalDate(aposta.dataFinal).toLocaleDateString('pt-BR');
     
     // Criar HTML completo com cabeçalho, tabela invertida e resumo
+    // Remover classes de animação para garantir renderização correta no html2canvas
     let htmlCompleto = `
-        <div id="tabelaParaImagem">
+        <div id="tabelaParaImagem" class="tabela-visualizacao" style="opacity: 1; visibility: visible;">
             <div class="tabela-cabecalho">
                 <h1 class="tabela-titulo">Aposta #${aposta.id}: ${totalDias} dias</h1>
                 <p class="tabela-subtitulo">De ${dataInicialFormatada} até ${dataFinalFormatada}</p>
                 <p class="tabela-subtitulo">Limite de ${aposta.limiteFaltas} faltas</p>
             </div>
             
-            <table class="tabela-invertida">
-                <thead>
-                    <tr>
-                        <th></th>
-                        ${aposta.participantes.map(p => `<th>${p}</th>`).join('')}
-                    </tr>
-                </thead>
-                <tbody>
+            <div class="tabela-wrapper">
+                <table class="tabela-invertida">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            ${aposta.participantes.map(p => `<th>${p}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>
     `;
 
-    // Linhas: cada dia é uma linha, primeira coluna é a data, depois os checks por participante
-    aposta.dias.forEach(dia => {
-        const dataFormatada = parseLocalDate(dia.data).toLocaleDateString('pt-BR');
+    // Linhas: cada dia do período é uma linha
+    todasDatas.forEach((dataStr, diaIndex) => {
+        const dataFormatada = parseLocalDate(dataStr).toLocaleDateString('pt-BR');
+        const diaRegistrado = diasRegistradosMap[dataStr];
+        
         htmlCompleto += '<tr>';
-        htmlCompleto += `<td><strong>${dataFormatada}</strong></td>`;
+        htmlCompleto += `<td class="tabela-data-cell"><strong>${dataFormatada}</strong></td>`;
         
         aposta.participantes.forEach(participante => {
-            const presente = dia.participantes[participante];
-            htmlCompleto += `<td class="check ${presente ? 'presente' : 'falta'}">${presente ? '✓' : '✗'}</td>`;
+            // Se o dia foi registrado, verificar se o participante estava presente
+            // Se não foi registrado, mostrar como não registrado (dash)
+            if (diaRegistrado) {
+                const presente = diaRegistrado.participantes[participante];
+                htmlCompleto += `<td class="check ${presente ? 'presente' : 'falta'}">${presente ? '✓' : '✗'}</td>`;
+            } else {
+                htmlCompleto += `<td class="check nao-registrado">—</td>`;
+            }
         });
         
         htmlCompleto += '</tr>';
     });
 
     htmlCompleto += `
-                </tbody>
-            </table>
+                    </tbody>
+                </table>
+            </div>
             
             <div class="tabela-resumo">
-                <h3>Resumo de Faltas</h3>
+                <h3 class="tabela-resumo-titulo">Resumo de Faltas</h3>
                 <div class="resumo-lista">
     `;
 
-    aposta.participantes.forEach(participante => {
+    aposta.participantes.forEach((participante) => {
         const faltas = faltasPorParticipante[participante];
         const status = faltas > aposta.limiteFaltas ? 'perdido' : faltas === aposta.limiteFaltas ? 'limite' : 'ok';
         htmlCompleto += `<div class="resumo-item ${status}">
@@ -1926,24 +2287,165 @@ function gerarImagemTabela() {
     container.innerHTML = htmlCompleto;
     container.style.display = 'block';
 
+    // Forçar renderização completa antes de capturar
+    const elemento = document.getElementById('tabelaParaImagem');
+    if (elemento) {
+        // Forçar layout recalculation
+        void elemento.offsetHeight;
+    }
+
     // Usar html2canvas para gerar imagem
     if (typeof html2canvas !== 'undefined') {
-        const elemento = document.getElementById('tabelaParaImagem');
-        html2canvas(elemento, {
-            backgroundColor: '#ffffff',
-            scale: 2
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = `aposta-${aposta.id}-tabela.png`;
-            link.href = canvas.toDataURL('image/png');
-            link.click();
-        }).catch(error => {
-            console.error('Erro ao gerar imagem:', error);
-            notifications.error('Erro ao gerar imagem. Tente novamente.');
-        });
+        // Aguardar renderização completa
+        setTimeout(() => {
+            // Mostrar loading com efeito visual
+            const btnGerar = document.querySelector('.btn-gerar-imagem');
+            if (btnGerar) {
+                btnGerar.disabled = true;
+                btnGerar.textContent = '⏳ Gerando imagem...';
+                btnGerar.classList.add('btn-gerando');
+            }
+            
+            // Adicionar overlay de loading na tabela
+            const loadingOverlay = document.createElement('div');
+            loadingOverlay.className = 'tabela-loading-overlay';
+            loadingOverlay.innerHTML = `
+                <div class="tabela-loading-content">
+                    <div class="tabela-loading-spinner"></div>
+                    <p>Gerando imagem...</p>
+                </div>
+            `;
+            container.appendChild(loadingOverlay);
+            
+            // Aguardar um frame para garantir que o overlay foi renderizado
+            requestAnimationFrame(() => {
+                html2canvas(elemento, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    allowTaint: false,
+                    removeContainer: false,
+                    windowWidth: elemento.scrollWidth,
+                    windowHeight: elemento.scrollHeight
+                }).then(canvas => {
+                    const link = document.createElement('a');
+                    link.download = `aposta-${aposta.id}-tabela.png`;
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    
+                    // Remover overlay
+                    if (loadingOverlay.parentNode) {
+                        loadingOverlay.parentNode.removeChild(loadingOverlay);
+                    }
+                    
+                    // Restaurar botão
+                    if (btnGerar) {
+                        btnGerar.disabled = false;
+                        btnGerar.textContent = '📊 Gerar Imagem da Tabela';
+                        btnGerar.classList.remove('btn-gerando');
+                    }
+                    
+                    notifications.success('Imagem gerada com sucesso!');
+                }).catch(error => {
+                    console.error('Erro ao gerar imagem:', error);
+                    notifications.error('Erro ao gerar imagem. Tente novamente.');
+                    
+                    // Remover overlay
+                    if (loadingOverlay.parentNode) {
+                        loadingOverlay.parentNode.removeChild(loadingOverlay);
+                    }
+                    
+                    // Restaurar botão
+                    if (btnGerar) {
+                        btnGerar.disabled = false;
+                        btnGerar.textContent = '📊 Gerar Imagem da Tabela';
+                        btnGerar.classList.remove('btn-gerando');
+                    }
+                });
+            });
+        }, 500); // Reduzir tempo de espera
     } else {
         notifications.error('Biblioteca de geração de imagem não carregada. Recarregue a página.');
     }
+}
+
+// Função para configurar efeitos de partículas na tabela
+function setupTabelaParticleEffects() {
+    if (!perfConfig.enableCardParticles) return;
+    
+    const tabelaContainer = document.getElementById('tabelaImagem');
+    if (!tabelaContainer) return;
+    
+    const tabelaWrapper = tabelaContainer.querySelector('.tabela-wrapper');
+    if (!tabelaWrapper) return;
+    
+    let particleCanvas = null;
+    let particleCtx = null;
+    let particles = [];
+    
+    const createTabelaParticleCanvas = () => {
+        particleCanvas = document.createElement('canvas');
+        particleCanvas.className = 'tabela-particles';
+        particleCanvas.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            opacity: 0.3;
+        `;
+        tabelaWrapper.style.position = 'relative';
+        tabelaWrapper.appendChild(particleCanvas);
+        particleCtx = particleCanvas.getContext('2d');
+        particleCanvas.width = tabelaWrapper.offsetWidth;
+        particleCanvas.height = tabelaWrapper.offsetHeight;
+        
+        const particleCount = perfConfig.isMobile ? 8 : 15;
+        for (let i = 0; i < particleCount; i++) {
+            particles.push({
+                x: Math.random() * particleCanvas.width,
+                y: Math.random() * particleCanvas.height,
+                vx: (Math.random() - 0.5) * 0.5,
+                vy: (Math.random() - 0.5) * 0.5,
+                size: Math.random() * 1.5 + 0.5,
+                life: Math.random() * 200 + 100,
+                maxLife: Math.random() * 200 + 100
+            });
+        }
+    };
+    
+    createTabelaParticleCanvas();
+    
+    const animateTabelaParticles = () => {
+        if (!particleCtx || !particleCanvas) return;
+        
+        particleCtx.clearRect(0, 0, particleCanvas.width, particleCanvas.height);
+        
+        particles.forEach((p, i) => {
+            p.x += p.vx;
+            p.y += p.vy;
+            p.life--;
+            
+            if (p.life <= 0 || p.x < 0 || p.x > particleCanvas.width || p.y < 0 || p.y > particleCanvas.height) {
+                p.x = Math.random() * particleCanvas.width;
+                p.y = Math.random() * particleCanvas.height;
+                p.life = p.maxLife;
+            }
+            
+            const alpha = p.life / p.maxLife;
+            particleCtx.fillStyle = `rgba(255, 228, 0, ${alpha * 0.4})`;
+            particleCtx.beginPath();
+            particleCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+            particleCtx.fill();
+        });
+        
+        requestAnimationFrame(animateTabelaParticles);
+    };
+    
+    animateTabelaParticles();
 }
 
 async function toggleEdicaoDia(data, diaIndex) {

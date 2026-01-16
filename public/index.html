@@ -76,7 +76,10 @@
 
         <!-- Página de detalhes (será carregada dinamicamente) -->
         <div id="detalhesAposta" class="detalhes-container" style="display: none;">
-            <button id="btnVoltar" class="btn btn-secondary">← Voltar</button>
+            <div class="detalhes-botoes-topo">
+                <button id="btnVoltar" class="btn btn-secondary">← Voltar</button>
+                <button id="btnExcluirAposta" class="btn btn-danger" onclick="abrirModalExclusaoAposta()">🗑️ Excluir Aposta</button>
+            </div>
             <div id="conteudoDetalhes"></div>
         </div>
     </div>
