@@ -960,6 +960,16 @@ function parseLocalDate(dateString) {
     return new Date(year, month - 1, day); // month é 0-indexed no Date
 }
 
+// Função auxiliar para formatar data com dia da semana abreviado (ex: "12/01 seg")
+function formatarDataComDiaSemana(dateString) {
+    const date = parseLocalDate(dateString);
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const diasSemana = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];
+    const diaSemana = diasSemana[date.getDay()];
+    return `${dia}/${mes} ${diaSemana}`;
+}
+
 // Estado da aplicação
 let estado = {
     apostas: [],
@@ -2341,7 +2351,7 @@ function gerarImagemTabela() {
 
     // Linhas: cada dia do período é uma linha
     todasDatas.forEach((dataStr, diaIndex) => {
-        const dataFormatada = parseLocalDate(dataStr).toLocaleDateString('pt-BR');
+        const dataFormatada = formatarDataComDiaSemana(dataStr);
         const diaRegistrado = diasRegistradosMap[dataStr];
         
         htmlCompleto += '<tr>';

@@ -1774,6 +1774,66 @@ header::before {
     width: 100%;
     max-width: 100%;
     margin: 0 auto;
+    font-size: 18px;
+}
+
+/* Aumentar tamanhos de fonte especificamente para a versão de imagem */
+#tabelaParaImagem .tabela-titulo {
+    font-size: 42px !important;
+    margin-bottom: 18px !important;
+    letter-spacing: 1.2px !important;
+}
+
+#tabelaParaImagem .tabela-subtitulo {
+    font-size: 20px !important;
+    margin: 10px 0 !important;
+    font-weight: 600 !important;
+}
+
+#tabelaParaImagem .tabela-cabecalho {
+    margin-bottom: 30px !important;
+    padding-bottom: 24px !important;
+    border-bottom-width: 4px !important;
+}
+
+#tabelaParaImagem table {
+    font-size: 16px !important;
+}
+
+#tabelaParaImagem table th {
+    font-size: 16px !important;
+    padding: 14px !important;
+}
+
+#tabelaParaImagem table td {
+    font-size: 16px !important;
+    padding: 12px !important;
+}
+
+#tabelaParaImagem table td.check {
+    font-size: 32px !important;
+    padding: 16px 10px !important;
+}
+
+#tabelaParaImagem .tabela-data-cell {
+    font-size: 16px !important;
+    padding: 14px !important;
+}
+
+#tabelaParaImagem .tabela-resumo-titulo {
+    font-size: 26px !important;
+    margin-bottom: 18px !important;
+}
+
+#tabelaParaImagem .resumo-item {
+    font-size: 16px !important;
+    padding: 12px 18px !important;
+}
+
+#tabelaParaImagem .resumo-alerta {
+    font-size: 16px !important;
+    padding: 18px !important;
+    margin-top: 20px !important;
 }
 
 .tabela-wrapper {
@@ -1950,10 +2010,11 @@ table tr:hover {
 
 table td.check {
     text-align: center;
-    font-size: 18px;
+    font-size: 24px;
     font-weight: 700;
     transition: all 0.3s ease;
     position: relative;
+    padding: 12px 8px;
 }
 
 .tabela-check-animated {
@@ -1973,23 +2034,45 @@ table td.check {
 }
 
 table td.check.presente {
-    color: var(--preto);
-    text-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    color: var(--verde-sucesso);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(34, 197, 94, 0.05) 100%);
+    border: 2px solid var(--verde-sucesso);
+    box-shadow: inset 0 0 10px rgba(34, 197, 94, 0.2),
+                0 0 8px rgba(34, 197, 94, 0.3);
+    text-shadow: 0 0 8px rgba(34, 197, 94, 0.6),
+                 0 0 15px rgba(34, 197, 94, 0.4);
+    font-size: 26px;
 }
 
 table td.check.presente:hover {
-    transform: scale(1.3);
-    text-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+    transform: scale(1.2);
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(34, 197, 94, 0.1) 100%);
+    box-shadow: inset 0 0 15px rgba(34, 197, 94, 0.3),
+                0 0 15px rgba(34, 197, 94, 0.5),
+                0 0 25px rgba(34, 197, 94, 0.3);
+    text-shadow: 0 0 12px rgba(34, 197, 94, 0.8),
+                 0 0 20px rgba(34, 197, 94, 0.6);
 }
 
 table td.check.falta {
-    color: var(--preto);
-    text-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+    color: var(--vermelho-erro);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(239, 68, 68, 0.05) 100%);
+    border: 2px solid var(--vermelho-erro);
+    box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.2),
+                0 0 8px rgba(239, 68, 68, 0.3);
+    text-shadow: 0 0 8px rgba(239, 68, 68, 0.6),
+                 0 0 15px rgba(239, 68, 68, 0.4);
+    font-size: 26px;
 }
 
 table td.check.falta:hover {
-    transform: scale(1.3);
-    text-shadow: 0 0 10px rgba(0, 0, 0, 0.4);
+    transform: scale(1.2);
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(239, 68, 68, 0.1) 100%);
+    box-shadow: inset 0 0 15px rgba(239, 68, 68, 0.3),
+                0 0 15px rgba(239, 68, 68, 0.5),
+                0 0 25px rgba(239, 68, 68, 0.3);
+    text-shadow: 0 0 12px rgba(239, 68, 68, 0.8),
+                 0 0 20px rgba(239, 68, 68, 0.6);
 }
 
 table td.check.nao-registrado {
