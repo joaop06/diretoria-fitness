@@ -143,8 +143,8 @@ app.post('/api/apostas/:id/dias', async (req, res) => {
       aposta.dias.push({ data, participantes });
     }
     
-    // Ordenar dias por data
-    aposta.dias.sort((a, b) => new Date(a.data) - new Date(b.data));
+    // Ordenar dias por data (usando comparação de strings para evitar problemas de timezone)
+    aposta.dias.sort((a, b) => a.data.localeCompare(b.data));
     
     await fs.writeFile(filePath, JSON.stringify(aposta, null, 2), 'utf-8');
     res.json(aposta);

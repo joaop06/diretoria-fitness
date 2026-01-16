@@ -1,5 +1,11 @@
 const API_BASE = '/api/apostas';
 
+// Função auxiliar para converter string de data (YYYY-MM-DD) para Date no timezone local
+function parseLocalDate(dateString) {
+    const [year, month, day] = dateString.split('-').map(Number);
+    return new Date(year, month - 1, day); // month é 0-indexed no Date
+}
+
 // Estado da aplicação
 let estado = {
     apostas: [],
@@ -64,8 +70,8 @@ function renderizarLista() {
     }
 
     container.innerHTML = estado.apostas.map(aposta => {
-        const dataInicial = new Date(aposta.dataInicial).toLocaleDateString('pt-BR');
-        const dataFinal = new Date(aposta.dataFinal).toLocaleDateString('pt-BR');
+        const dataInicial = parseLocalDate(aposta.dataInicial).toLocaleDateString('pt-BR');
+        const dataFinal = parseLocalDate(aposta.dataFinal).toLocaleDateString('pt-BR');
         const totalDias = aposta.dias.length;
         const totalParticipantes = aposta.participantes.length;
 
@@ -152,8 +158,8 @@ function renderizarDetalhes() {
     const aposta = estado.apostaAtual;
     const container = document.getElementById('conteudoDetalhes');
     
-    const dataInicial = new Date(aposta.dataInicial).toLocaleDateString('pt-BR');
-    const dataFinal = new Date(aposta.dataFinal).toLocaleDateString('pt-BR');
+    const dataInicial = parseLocalDate(aposta.dataInicial).toLocaleDateString('pt-BR');
+    const dataFinal = parseLocalDate(aposta.dataFinal).toLocaleDateString('pt-BR');
     
     // Calcular faltas por participante
     const faltasPorParticipante = {};
@@ -225,7 +231,7 @@ function renderizarDetalhes() {
             <h3>Dias Registrados (${aposta.dias.length})</h3>
             ${aposta.dias.length === 0 ? '<p>Nenhum dia registrado ainda.</p>' : ''}
             ${aposta.dias.map((dia, diaIndex) => {
-                const dataFormatada = new Date(dia.data).toLocaleDateString('pt-BR');
+                const dataFormatada = parseLocalDate(dia.data).toLocaleDateString('pt-BR');
                 const diaId = `dia-${diaIndex}-${dia.data}`;
                 return `
                     <div class="dia-registrado" id="${diaId}">
@@ -330,8 +336,8 @@ function gerarImagemTabela() {
     const totalDias = aposta.dias.length;
     
     // Formatar datas
-    const dataInicialFormatada = new Date(aposta.dataInicial).toLocaleDateString('pt-BR');
-    const dataFinalFormatada = new Date(aposta.dataFinal).toLocaleDateString('pt-BR');
+    const dataInicialFormatada = parseLocalDate(aposta.dataInicial).toLocaleDateString('pt-BR');
+    const dataFinalFormatada = parseLocalDate(aposta.dataFinal).toLocaleDateString('pt-BR');
     
     // Criar HTML completo com cabeçalho, tabela invertida e resumo
     let htmlCompleto = `
@@ -354,7 +360,7 @@ function gerarImagemTabela() {
 
     // Linhas: cada dia é uma linha, primeira coluna é a data, depois os checks por participante
     aposta.dias.forEach(dia => {
-        const dataFormatada = new Date(dia.data).toLocaleDateString('pt-BR');
+        const dataFormatada = parseLocalDate(dia.data).toLocaleDateString('pt-BR');
         htmlCompleto += '<tr>';
         htmlCompleto += `<td><strong>${dataFormatada}</strong></td>`;
         
